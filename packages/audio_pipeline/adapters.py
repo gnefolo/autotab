@@ -38,23 +38,13 @@ class DemucsSeparator(Separator):
     model: str = "htdemucs_6s"
     fallback_model: str | None = "htdemucs"
     device: str | None = None
+    collect_fallback_guitar_candidate: bool = True
 
     def separate(self, audio_path: Path, output_dir: Path) -> dict[str, Path]:
-        """Run Demucs as a replaceable baseline separator.
-
-        This adapter deliberately shells out to the CLI so the orchestration layer
-        is not coupled to Demucs internals. Install Demucs in the worker image.
-        """
+        """Run the preferred Demucs model and optionally collect a second guitar source."""
         output_dir.mkdir(parents=True, exist_ok=True)
-        # Always invoke Demucs through the same Python interpreter that runs
-        # AutoTab. This avoids PATH mismatches between the core venv, ML venv,
-        # Homebrew and system Python on macOS.
-        models = [self.model]
-        if self.fallback_model and self.fallback_model != self.model:
-            models.append(self.fallback_model)
 
-        failures: list[str] = []
-        for model in models:
+        def run_model(model: str) -> tuple[dict[str, Path], str | None]:
             cmd = [sys.executable, "-m", "demucs", "-n", model, "-o", str(output_dir)]
             if self.device:
                 cmd += ["-d", self.device]
@@ -68,19 +58,38 @@ class DemucsSeparator(Separator):
             except subprocess.CalledProcessError as exc:
                 stdout = (exc.stdout or "")[-3000:]
                 stderr = (exc.stderr or "")[-5000:]
-                failures.append(
-                    f"{model}: stdout={stdout!r} stderr={stderr!r}"
-                )
-                continue
+                return {}, f"{model}: stdout={stdout!r} stderr={stderr!r}"
 
             song_dir = output_dir / model / audio_path.stem
             stems: dict[str, Path] = {}
             if song_dir.exists():
                 for p in song_dir.glob("*.wav"):
                     stems[p.stem] = p
-            if stems:
-                return stems
-            failures.append(f"{model}: produced no stems under {song_dir}")
+            if not stems:
+                return {}, f"{model}: produced no stems under {song_dir}"
+            return stems, None
+
+        failures: list[str] = []
+        primary, error = run_model(self.model)
+        if error:
+            failures.append(error)
+
+        fallback: dict[str, Path] = {}
+        if self.fallback_model and (
+            not primary or self.collect_fallback_guitar_candidate
+        ):
+            fallback, error = run_model(self.fallback_model)
+            if error:
+                failures.append(error)
+
+        if primary:
+            result = dict(primary)
+            if fallback.get("other") is not None:
+                result["guitar_alt"] = fallback["other"]
+            return result
+
+        if fallback:
+            return fallback
 
         raise RuntimeError(
             "Demucs failed for all configured models. " + " | ".join(failures)
