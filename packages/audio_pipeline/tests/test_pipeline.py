@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT))
 
 from audio_pipeline.adapters import Separator, Transcriber
 from audio_pipeline.pipeline import AudioPipeline
+from audio_pipeline.drums import DrumEvent
 from music_engine.engine import NoteEvent
 
 
@@ -58,6 +59,14 @@ class BassTranscriber(Transcriber):
 
 
 
+class FakeDrumTranscriber:
+    def transcribe(self, audio_path):
+        return [
+            DrumEvent("kick", 0.0, 0.95, 36),
+            DrumEvent("snare", 0.5, 0.90, 38),
+        ]
+
+
 class SixStemSeparator(Separator):
     def separate(self, audio_path, output_dir):
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -98,6 +107,7 @@ class PipelineTests(unittest.TestCase):
                 GuitarTranscriber(),
                 bass_transcriber=BassTranscriber(),
                 piano_transcriber=GuitarTranscriber(),
+                drum_transcriber=FakeDrumTranscriber(),
             )
             result = pipeline.run(source, td / "work", "guitar_standard")
             self.assertEqual(result.tracks["guitar"]["stem"], "guitar")
@@ -106,6 +116,9 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("piano", result.tracks)
             self.assertEqual(result.tracks["piano"]["kind"], "score")
             self.assertEqual(result.tracks["piano"]["stem"], "piano")
+            self.assertIn("drums", result.tracks)
+            self.assertEqual(result.tracks["drums"]["kind"], "drums")
+            self.assertEqual(len(result.tracks["drums"]["events"]), 2)
 
     def test_multi_instrument_tracks_are_transcribed_independently(self):
         with tempfile.TemporaryDirectory() as td:
