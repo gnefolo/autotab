@@ -352,3 +352,17 @@ input,select{border-radius:0}
 .pianoSummary{margin-top:24px;border:1px solid var(--border);background:#0f1214;padding:22px;display:inline-flex;flex-direction:column;min-width:150px}
 .pianoSummary span{font-size:34px;font-weight:900;line-height:1;color:var(--accent)}
 .pianoSummary small{margin-top:8px;font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--soft)}
+
+.confidencePanel{border:1px solid var(--border);background:#0e1113;padding:12px;margin:14px 0}
+.confidenceStats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 10px}
+.confidenceStats>div{border:1px solid var(--border);padding:8px;display:flex;flex-direction:column;gap:3px}
+.confidenceStats span{font-size:8px;text-transform:uppercase;letter-spacing:.09em;color:var(--soft)}
+.confidenceStats strong{font-size:18px;color:var(--text)}
+.confidenceTimeline{display:flex;gap:2px;min-height:18px;margin:10px 0}
+.confidenceCell{flex:1;min-width:3px;height:18px;border:0;padding:0;cursor:pointer}
+.confidenceCell.strong{background:#5d8d59}
+.confidenceCell.medium{background:#a8863b}
+.confidenceCell.weak{background:#9b4c4c}
+.weakWindowList{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.weakWindowList button{border:1px solid var(--border);background:var(--surface-2);color:var(--muted);font-size:9px;padding:5px 7px;cursor:pointer}
+.weakWindowList button:hover{color:var(--text);border-color:var(--soft)}
