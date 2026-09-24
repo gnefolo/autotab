@@ -45,8 +45,8 @@ export default function Home() {
     try{
       const res=await fetch(`${API}/jobs/${id}`); const data=await res.json(); setJob(data);
       if(data.status==='completed'){ setMessage('Analysis complete'); stopPolling(); return; }
-      if(data.status==='failed'){ setMessage('Analysis failed'); stopPolling(); return; }
-      setMessage(`${data.status} · ${data.progress}%`); timer.current=setTimeout(()=>poll(id),900);
+      if(data.status==='failed'){ setMessage(`Analysis failed at ${data.stage||'unknown stage'} · ${data.error||'No technical details available'}`); stopPolling(); return; }
+      setMessage(`${data.stage||data.status} · ${data.progress}%`); timer.current=setTimeout(()=>poll(id),900);
     }catch{ setMessage('Cannot reach AutoTab API'); stopPolling(); }
   }
   async function upload(){
@@ -155,6 +155,8 @@ export default function Home() {
       <aside className="panel">
         <div className="sectionTitle">Analyze track</div><div className="label">Audio</div>
         <input className="field" type="file" accept="audio/*" onChange={e=>setFile(e.target.files?.[0]||null)}/><div className="small" style={{marginTop:8}}>{filename}</div>
+        <div className="label" style={{marginTop:18}}>ML diagnostics</div>
+        <button className="btn secondary" onClick={async()=>{try{const r=await fetch(`${API}/diagnostics/ml`);const d=await r.json();setMessage(d.ready?`ML ready · Python ${d.python}`:`ML not ready · ${JSON.stringify(d)}`);}catch(e){setMessage('ML diagnostics unavailable');}}}>Check audio engine</button>
         <div className="label" style={{marginTop:18}}>Instrument tuning</div>
         <select className="field" value={tuning} onChange={e=>setTuning(e.target.value)}>{tunings.map(([id,l])=><option key={id} value={id}>{l}</option>)}</select>
         <div className="label" style={{marginTop:14}}>Playing profile</div>
