@@ -1,4 +1,4 @@
-# AutoTab MVP v0.14
+# AutoTab MVP v0.15
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -254,3 +254,16 @@ AutoTab now converts the separated `drums` stem into structured percussion event
 - tuning, capo and string-fingering controls are hidden in drum mode.
 
 The current classifier is an explainable deterministic baseline and is designed to be replaced by a dedicated learned drum-transcription model later.
+
+
+## Milestone 15 — Guitar Role Intelligence
+
+AutoTab now derives two optional virtual guitar views from the same transcribed guitar stem:
+
+- Rhythm Guitar: chordal/polyphonic onset groups and lower-register supporting material;
+- Lead Guitar: higher-register, sustained and melodic singleton runs;
+- both parts reuse the normal tuning, fingering, correction and learned-ranker workflow;
+- the original full Guitar part remains available;
+- role confidence and explanatory metadata are stored with each inferred part.
+
+These are explicitly labeled as inferred parts. They are not claimed to be source-separated Guitar 1 / Guitar 2 audio stems.
