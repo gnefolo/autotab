@@ -1,0 +1,3 @@
+# Install these in the ML worker environment, not necessarily in the API image.
+basic-pitch[onnx]
+demucs
