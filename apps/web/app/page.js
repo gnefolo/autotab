@@ -292,7 +292,7 @@ export default function Home() {
           <button className={lang==='it'?'active':''} onClick={()=>setLang('it')}>IT</button>
           <button className={lang==='en'?'active':''} onClick={()=>setLang('en')}>EN</button>
         </div>
-        <div className="badge">MVP 0.9</div>
+        <div className="badge">MVP 0.10</div>
       </div>
     </div>
 
