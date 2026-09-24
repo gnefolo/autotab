@@ -123,6 +123,7 @@ const COPY = {
     confidenceHelp: 'Questa stima indica dove la trascrizione automatica è più fragile. Clicca una sezione per ascoltarla subito.',
     noWeakSections: 'Nessuna sezione debole rilevata',
     transcriptionEngine: 'Motore trascrizione',
+    riffFixes: 'Correzioni riff',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -228,6 +229,7 @@ const COPY = {
     confidenceHelp: 'This estimate highlights where the automatic transcription is less reliable. Click a section to audition it immediately.',
     noWeakSections: 'No weak sections detected',
     transcriptionEngine: 'Transcription engine',
+    riffFixes: 'Riff consistency fixes',
   }
 };
 
@@ -897,7 +899,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.17</span>
+          <span className="versionTag">0.18</span>
         </div>
       </header>
 
@@ -1042,6 +1044,9 @@ export default function Home() {
                   <div><span>{t.weakSections}</span><strong>{confidenceData.weak_windows?.length || 0}</strong></div>
                   {availableParts.find(p => p.id === selectedPart)?.transcription_engine && (
                     <div className="span2"><span>{t.transcriptionEngine}</span><strong className="engineName">{availableParts.find(p => p.id === selectedPart)?.transcription_engine}</strong></div>
+                  )}
+                  {availableParts.find(p => p.id === selectedPart)?.riff_consistency && (
+                    <div className="span2"><span>{t.riffFixes}</span><strong>{availableParts.find(p => p.id === selectedPart)?.riff_consistency?.correction_count || 0}</strong></div>
                   )}
                 </div>
                 <p className="microCopy">{t.confidenceHelp}</p>
