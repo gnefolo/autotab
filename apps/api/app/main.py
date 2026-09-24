@@ -576,8 +576,8 @@ def apply_correction(job_id: str, payload: CorrectionRequest):
         title="AutoTab TAB Corrected",
         tab_only=True,
     )
-    out = JOBS.root / job_id / "score-corrected.musicxml"
-    tab_out = JOBS.root / job_id / "score-corrected-tab.musicxml"
+    out = JOBS.root / job_id / f"score-{payload.part}-corrected.musicxml"
+    tab_out = JOBS.root / job_id / f"score-{payload.part}-corrected-tab.musicxml"
     out.write_text(xml, encoding="utf-8")
     tab_out.write_text(tab_xml, encoding="utf-8")
 
