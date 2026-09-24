@@ -91,6 +91,15 @@ const COPY = {
     midi: 'MIDI',
     chord: 'Chord',
     technique: 'Tecniche',
+    fullScore: 'Partitura + TAB',
+    tabOnly: 'Solo TAB',
+    songAudio: 'Canzone',
+    tabAudio: 'TAB',
+    hideSetup: 'Nascondi setup',
+    showSetup: 'Mostra setup',
+    hideInspector: 'Nascondi inspector',
+    showInspector: 'Mostra inspector',
+    listen: 'Ascolto',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -164,6 +173,15 @@ const COPY = {
     midi: 'MIDI',
     chord: 'Chord',
     technique: 'Techniques',
+    fullScore: 'Score + TAB',
+    tabOnly: 'TAB only',
+    songAudio: 'Song',
+    tabAudio: 'TAB',
+    hideSetup: 'Hide setup',
+    showSetup: 'Show setup',
+    hideInspector: 'Hide inspector',
+    showInspector: 'Show inspector',
+    listen: 'Listen',
   }
 };
 
@@ -193,6 +211,10 @@ export default function Home() {
   const [editString, setEditString] = useState(0);
   const [editFret, setEditFret] = useState(0);
   const [radius, setRadius] = useState(2);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  const [scoreView, setScoreView] = useState('full');
+  const [listenMode, setListenMode] = useState('song');
 
   const timer = useRef(null);
   const audio = useRef(null);
@@ -200,6 +222,10 @@ export default function Home() {
   const scoreHost = useRef(null);
   const osmd = useRef(null);
   const cursorIndex = useRef(-1);
+  const synthContext = useRef(null);
+  const synthNodes = useRef([]);
+  const synthInterval = useRef(null);
+  const synthScheduledUntil = useRef(0);
 
   const t = COPY[lang];
   const filename = useMemo(() => file?.name || t.noTrack, [file, t.noTrack]);
@@ -304,6 +330,11 @@ export default function Home() {
     setLoopA(null);
     setLoopB(null);
     setTuningSuggestions([]);
+    setLeftOpen(true);
+    setRightOpen(true);
+    setScoreView('full');
+    setListenMode('song');
+    stopTabSynth();
   }
 
   function chooseNote(n) {
@@ -354,7 +385,11 @@ export default function Home() {
   useEffect(() => {
     const saved = window.localStorage.getItem('autotab-lang');
     if (saved === 'it' || saved === 'en') setLang(saved);
-    return () => stopPolling();
+    return () => {
+      stopPolling();
+      stopTabSynth();
+      if (synthContext.current) synthContext.current.close().catch(() => {});
+    };
   }, []);
 
   useEffect(() => {
@@ -377,6 +412,11 @@ export default function Home() {
   useEffect(() => {
     if (audio.current) audio.current.playbackRate = speed;
     Object.values(stemAudios.current).forEach(a => { if (a) a.playbackRate = speed; });
+    if (listenMode === 'tab' && audio.current && !audio.current.paused) {
+      stopTabSynth();
+      synthScheduledUntil.current = audio.current.currentTime;
+      startTabSynth();
+    }
   }, [speed]);
 
   useEffect(() => {
@@ -404,7 +444,7 @@ export default function Home() {
         drawingParameters: 'compacttight',
         drawTitle: false,
       });
-      await viewer.load(`${API}/jobs/${job.id}/musicxml?ts=${Date.now()}`);
+      await viewer.load(`${API}/jobs/${job.id}/musicxml?view=${scoreView}&ts=${Date.now()}`);
       await viewer.render();
       viewer.cursor.show();
       viewer.cursor.reset();
@@ -412,7 +452,96 @@ export default function Home() {
       cursorIndex.current = -1;
     })().catch(e => setMessage(`Score render error: ${e.message}`));
     return () => { cancelled = true; };
-  }, [ready, setupApplied, job?.id, job?.result?.tuning, job?.result?.musicxml, correctionCount]);
+  }, [ready, setupApplied, job?.id, job?.result?.tuning, job?.result?.musicxml, job?.result?.musicxml_tab, correctionCount, scoreView]);
+
+  function getSynthContext() {
+    if (!synthContext.current) {
+      synthContext.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (synthContext.current.state === 'suspended') synthContext.current.resume();
+    return synthContext.current;
+  }
+
+  function stopTabSynth() {
+    if (synthInterval.current) {
+      clearInterval(synthInterval.current);
+      synthInterval.current = null;
+    }
+    synthNodes.current.forEach(node => {
+      try { node.stop(); } catch {}
+      try { node.disconnect(); } catch {}
+    });
+    synthNodes.current = [];
+  }
+
+  function scheduleTabWindow() {
+    const master = audio.current;
+    const notes = job?.result?.tab || [];
+    if (!master || master.paused || listenMode !== 'tab' || !notes.length) return;
+    const ctx = getSynthContext();
+    const songNow = master.currentTime;
+    const from = Math.max(songNow - 0.02, synthScheduledUntil.current);
+    const to = songNow + Math.max(1.5, 2.5 * speed);
+    if (to <= from) return;
+
+    notes
+      .filter(note => note.start >= from && note.start < to)
+      .forEach(note => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const frequency = 440 * Math.pow(2, (note.pitch - 69) / 12);
+        const when = ctx.currentTime + Math.max(0, (note.start - songNow) / speed);
+        const duration = Math.max(0.04, Math.min(2.0, (note.duration || 0.15) / speed));
+        const level = 0.035 + 0.055 * Math.max(0.15, Math.min(1, note.confidence ?? 0.8));
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(frequency, when);
+        gain.gain.setValueAtTime(0.0001, when);
+        gain.gain.exponentialRampToValueAtTime(level, when + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(when);
+        osc.stop(when + duration + 0.02);
+        synthNodes.current.push(osc);
+      });
+
+    synthScheduledUntil.current = to;
+    synthNodes.current = synthNodes.current.filter(node => {
+      try { return node.context === ctx; } catch { return false; }
+    });
+  }
+
+  function startTabSynth() {
+    stopTabSynth();
+    synthScheduledUntil.current = audio.current?.currentTime || 0;
+    scheduleTabWindow();
+    synthInterval.current = setInterval(scheduleTabWindow, 450);
+  }
+
+  function changeListenMode(mode) {
+    setListenMode(mode);
+    const master = audio.current;
+    if (!master) return;
+    if (mode === 'tab') {
+      master.muted = true;
+      Object.values(stemAudios.current).forEach(a => { if (a) a.pause(); });
+      if (!master.paused) {
+        setTimeout(() => {
+          synthScheduledUntil.current = master.currentTime;
+          startTabSynth();
+        }, 0);
+      }
+    } else {
+      stopTabSynth();
+      master.muted = effectiveMuted('original');
+      if (!master.paused) {
+        syncStemTransport(master);
+        Object.values(stemAudios.current).forEach(a => a?.play().catch(() => {}));
+      }
+    }
+  }
 
   function effectiveMuted(name) {
     return solo ? name !== solo : !!mix[name]?.muted;
@@ -439,16 +568,26 @@ export default function Home() {
     const master = audio.current;
     if (!master) return;
     master.volume = Math.max(0, Math.min(1, mix.original?.volume ?? 1));
-    master.muted = effectiveMuted('original');
+
     if (master.paused) {
-      syncStemTransport(master);
-      await Promise.allSettled([
-        master.play(),
-        ...Object.values(stemAudios.current).map(a => a?.play()),
-      ]);
+      if (listenMode === 'tab') {
+        master.muted = true;
+        Object.values(stemAudios.current).forEach(a => a?.pause());
+        await master.play();
+        startTabSynth();
+      } else {
+        stopTabSynth();
+        master.muted = effectiveMuted('original');
+        syncStemTransport(master);
+        await Promise.allSettled([
+          master.play(),
+          ...Object.values(stemAudios.current).map(a => a?.play()),
+        ]);
+      }
     } else {
       master.pause();
       Object.values(stemAudios.current).forEach(a => a?.pause());
+      stopTabSynth();
     }
   }
 
@@ -471,8 +610,13 @@ export default function Home() {
     if (loopA != null && loopB != null && a.currentTime >= loopB) {
       a.currentTime = loopA;
       Object.values(stemAudios.current).forEach(s => { if (s) s.currentTime = loopA; });
+      if (listenMode === 'tab') {
+        stopTabSynth();
+        synthScheduledUntil.current = loopA;
+        startTabSynth();
+      }
     }
-    syncStemTransport(a);
+    if (listenMode === 'song') syncStemTransport(a);
     setCurrent(a.currentTime);
     syncCursor(a.currentTime);
   }
@@ -484,6 +628,11 @@ export default function Home() {
     setCurrent(next);
     syncCursor(next);
     Object.values(stemAudios.current).forEach(a => { if (a) a.currentTime = next; });
+    if (listenMode === 'tab' && !audio.current.paused) {
+      stopTabSynth();
+      synthScheduledUntil.current = next;
+      startTabSynth();
+    }
   }
 
   const statusLabel = job?.status === 'failed'
@@ -667,8 +816,8 @@ export default function Home() {
       )}
 
       {ready && setupApplied && (
-        <section className="workspaceShell">
-          <aside className="leftSidebar">
+        <section className={`workspaceShell ${!leftOpen ? 'leftCollapsed' : ''} ${!rightOpen ? 'rightCollapsed' : ''}`}>
+          {leftOpen && <aside className="leftSidebar">
             <div className="panelHeader">
               <span className="sectionKicker">02 / {t.settings.toUpperCase()}</span>
               <strong>{t.setup}</strong>
@@ -726,14 +875,30 @@ export default function Home() {
 
               {message && <div className="systemMessage compact">{message}</div>}
             </div>
-          </aside>
+          </aside>}
 
           <section className="scoreWorkspace">
             <div className="scoreToolbar">
-              <div>
+              <div className="toolbarIdentity">
                 <span className="sectionKicker">03 / WORKSPACE</span>
-                <strong>{t.score}</strong>
+                <strong>{scoreView === 'tab' ? t.tabOnly : t.fullScore}</strong>
               </div>
+
+              <div className="workspaceControls">
+                <button className="panelToggle" onClick={() => setLeftOpen(v => !v)}>
+                  {leftOpen ? '◀' : '▶'} {leftOpen ? t.hideSetup : t.showSetup}
+                </button>
+
+                <div className="viewToggle">
+                  <button className={scoreView === 'full' ? 'active' : ''} onClick={() => setScoreView('full')}>{t.fullScore}</button>
+                  <button className={scoreView === 'tab' ? 'active' : ''} onClick={() => setScoreView('tab')}>{t.tabOnly}</button>
+                </div>
+
+                <button className="panelToggle" onClick={() => setRightOpen(v => !v)}>
+                  {rightOpen ? t.hideInspector : t.showInspector} {rightOpen ? '▶' : '◀'}
+                </button>
+              </div>
+
               <div className="scoreMeta">
                 <span>{tuning.replaceAll('_', ' ')}</span>
                 <span>{profile}</span>
@@ -745,7 +910,7 @@ export default function Home() {
             </div>
           </section>
 
-          <aside className="rightInspector">
+          {rightOpen && <aside className="rightInspector">
             <div className="panelHeader">
               <span className="sectionKicker">INSPECTOR</span>
               <strong>{t.inspector}</strong>
@@ -816,7 +981,7 @@ export default function Home() {
                 </div>
               )}
             </div>
-          </aside>
+          </aside>}
 
           <footer className="bottomDock">
             <audio
@@ -838,6 +1003,10 @@ export default function Home() {
 
             <div className="transportBar">
               <button className="playButton" onClick={togglePlayback}>▶︎</button>
+              <div className="listenToggle" title={t.listen}>
+                <button className={listenMode === 'song' ? 'active' : ''} onClick={() => changeListenMode('song')}>{t.songAudio}</button>
+                <button className={listenMode === 'tab' ? 'active' : ''} onClick={() => changeListenMode('tab')}>{t.tabAudio}</button>
+              </div>
               <span className="timeReadout">{fmt(current)}</span>
               <input
                 className="timeline"
@@ -857,7 +1026,7 @@ export default function Home() {
               <button className="transportButton" onClick={() => { setLoopA(null); setLoopB(null); }}>{t.clearLoop}</button>
             </div>
 
-            <div className="stemStrip">
+            <div className={`stemStrip ${listenMode === 'tab' ? 'disabledMix' : ''}`}>
               {['original', ...stemNames].map(name => (
                 <div className="stemChannel" key={name}>
                   <span className="stemName">{name === 'original' ? t.original : name}</span>
