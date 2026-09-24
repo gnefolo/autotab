@@ -43,6 +43,10 @@ const COPY = {
     applying: 'Generazione TAB…',
     retuneFail: 'Rigenerazione TAB fallita',
     retuned: 'TAB rigenerata',
+    part: 'Parte',
+    guitarPart: 'Chitarra',
+    bassPart: 'Basso',
+    partHelp: 'Scegli la parte strumentale da trasformare in TAB.',
     suggestions: 'Compatibilità accordatura',
     suggestionsHelp: 'Stima di compatibilità fisica con le note trascritte, non identificazione certa dell’accordatura originale.',
     guitar: 'Chitarra',
@@ -128,6 +132,10 @@ const COPY = {
     applying: 'Generating TAB…',
     retuneFail: 'TAB regeneration failed',
     retuned: 'TAB regenerated',
+    part: 'Part',
+    guitarPart: 'Guitar',
+    bassPart: 'Bass',
+    partHelp: 'Choose the instrument part to turn into TAB.',
     suggestions: 'Tuning compatibility',
     suggestionsHelp: 'Physical compatibility estimate against transcribed notes, not certain identification of the original recorded tuning.',
     guitar: 'Guitar',
@@ -197,6 +205,8 @@ export default function Home() {
   const [file, setFile] = useState(null);
   const [tuning, setTuning] = useState('guitar_standard');
   const [instrumentFamily, setInstrumentFamily] = useState('guitar');
+  const [availableParts, setAvailableParts] = useState([]);
+  const [selectedPart, setSelectedPart] = useState('guitar');
   const [tuningSuggestions, setTuningSuggestions] = useState([]);
   const [profile, setProfile] = useState('original_like');
   const [capo, setCapo] = useState(0);
@@ -249,6 +259,7 @@ export default function Home() {
 
   function setupPayload() {
     return {
+      part: selectedPart,
       tuning,
       profile,
       capo,
@@ -342,6 +353,9 @@ export default function Home() {
     setLoopA(null);
     setLoopB(null);
     setTuningSuggestions([]);
+    setAvailableParts([]);
+    setSelectedPart('guitar');
+    setInstrumentFamily('guitar');
     setLeftOpen(true);
     setRightOpen(true);
     setScoreView('tab');
@@ -418,11 +432,35 @@ export default function Home() {
 
   useEffect(() => {
     if (!ready || setupApplied) return;
-    fetch(`${API}/jobs/${job.id}/tuning-suggestions?family=${instrumentFamily}&limit=5`)
+    fetch(`${API}/jobs/${job.id}/parts`)
+      .then(r => r.json())
+      .then(d => {
+        const parts = d.parts || [];
+        setAvailableParts(parts);
+        if (parts.length && !parts.some(p => p.id === selectedPart)) {
+          setSelectedPart(parts[0].id);
+        }
+      })
+      .catch(() => setAvailableParts([]));
+  }, [ready, setupApplied, job?.id]);
+
+  useEffect(() => {
+    if (selectedPart === 'bass') {
+      setInstrumentFamily('bass');
+      if (!tuning.startsWith('bass_')) setTuning('bass_standard_4');
+    } else if (selectedPart === 'guitar') {
+      setInstrumentFamily('guitar');
+      if (tuning.startsWith('bass_')) setTuning('guitar_standard');
+    }
+  }, [selectedPart]);
+
+  useEffect(() => {
+    if (!ready || setupApplied) return;
+    fetch(`${API}/jobs/${job.id}/tuning-suggestions?family=${instrumentFamily}&part=${selectedPart}&limit=5`)
       .then(r => r.json())
       .then(d => setTuningSuggestions(d.suggestions || []))
       .catch(() => setTuningSuggestions([]));
-  }, [ready, setupApplied, job?.id, instrumentFamily]);
+  }, [ready, setupApplied, job?.id, instrumentFamily, selectedPart]);
 
   useEffect(() => {
     if (audio.current) audio.current.playbackRate = speed;
@@ -795,7 +833,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.10</span>
+          <span className="versionTag">0.11</span>
         </div>
       </header>
 
@@ -848,6 +886,25 @@ export default function Home() {
             <span className="sectionKicker">02 / {t.settings.toUpperCase()}</span>
             <h1>{t.setup}</h1>
             <p>{t.setupBody}</p>
+
+            {availableParts.length > 0 && (
+              <div className="controlGroup">
+                <label>{t.part}</label>
+                <div className="segmented partSelector">
+                  {availableParts.map(part => (
+                    <button
+                      key={part.id}
+                      className={selectedPart === part.id ? 'active' : ''}
+                      onClick={() => setSelectedPart(part.id)}
+                    >
+                      {part.id === 'bass' ? t.bassPart : t.guitarPart}
+                      <small>{part.note_count} {t.notes}</small>
+                    </button>
+                  ))}
+                </div>
+                <div className="microCopy">{t.partHelp}</div>
+              </div>
+            )}
 
             <div className="controlGroup">
               <label>{t.tuning}</label>
@@ -954,6 +1011,21 @@ export default function Home() {
             </div>
 
             <div className="sidebarBody">
+              {availableParts.length > 1 && (
+                <div className="controlGroup">
+                  <label>{t.part}</label>
+                  <select
+                    value={selectedPart}
+                    onChange={e => setSelectedPart(e.target.value)}
+                  >
+                    {availableParts.map(part => (
+                      <option key={part.id} value={part.id}>
+                        {part.id === 'bass' ? t.bassPart : t.guitarPart}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="controlGroup">
                 <label>{t.tuning}</label>
                 <select value={tuning} onChange={e => setTuning(e.target.value)}>
@@ -1037,6 +1109,7 @@ export default function Home() {
               </div>
 
               <div className="scoreMeta">
+                <span>{selectedPart === 'bass' ? t.bassPart : t.guitarPart}</span>
                 <span>{tuning.replaceAll('_', ' ')}</span>
                 <span>{profile}</span>
                 <span>Capo {capo}</span>
