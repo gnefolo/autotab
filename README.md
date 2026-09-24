@@ -1,4 +1,4 @@
-# AutoTab MVP v0.19
+# AutoTab MVP v0.20
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -324,3 +324,21 @@ For sparse recordings, especially voice + guitar, AutoTab now compares two separ
 - `htdemucs:other` exposed internally as `guitar_alt`.
 
 Both candidates are transcribed with the same three-pass guitar consensus engine. AutoTab scores confidence stability, low-confidence ratio, micro-note artifacts, density and completeness, then selects the more stable source before riff cleanup and fingering. The UI shows the chosen source and both candidate scores.
+
+
+## Milestone 20 — Refine Transcription Workflow
+
+After the initial analysis, guitar transcription can now be refined without rerunning Demucs.
+
+Available AMT profiles:
+- **Precise**: stricter thresholds and cleanup, intended to reduce false positives;
+- **Balanced**: the default three-pass consensus;
+- **Sensitive**: looser thresholds, intended to recover more notes.
+
+The user can also choose the guitar source:
+- **Auto**: compare available sources and select the most stable;
+- **guitar**: force the dedicated six-stem guitar source;
+- **guitar_alt**: force the four-stem `other` source;
+- **other**: legacy four-stem source when no dedicated guitar stem is available.
+
+Refinement updates canonical guitar notes, confidence diagnostics, inferred Rhythm/Lead views, tuning suggestions, source-selection diagnostics and riff-consistency cleanup while preserving the already-computed separation artifacts.
