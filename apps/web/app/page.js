@@ -100,6 +100,9 @@ const COPY = {
     hideInspector: 'Nascondi inspector',
     showInspector: 'Mostra inspector',
     listen: 'Ascolto',
+    zoom: 'Zoom',
+    fit: 'Adatta',
+    measuresPerLine: 'Misure/riga',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -182,6 +185,9 @@ const COPY = {
     hideInspector: 'Hide inspector',
     showInspector: 'Show inspector',
     listen: 'Listen',
+    zoom: 'Zoom',
+    fit: 'Fit',
+    measuresPerLine: 'Measures/line',
   }
 };
 
@@ -215,6 +221,8 @@ export default function Home() {
   const [rightOpen, setRightOpen] = useState(true);
   const [scoreView, setScoreView] = useState('full');
   const [listenMode, setListenMode] = useState('song');
+  const [scoreZoom, setScoreZoom] = useState(1.08);
+  const [measuresPerLine, setMeasuresPerLine] = useState(4);
 
   const timer = useRef(null);
   const audio = useRef(null);
@@ -336,6 +344,8 @@ export default function Home() {
     setScoreView('full');
     setListenMode('song');
     listenModeRef.current = 'song';
+    setScoreZoom(1.08);
+    setMeasuresPerLine(4);
     stopTabSynth();
   }
 
@@ -437,24 +447,70 @@ export default function Home() {
   useEffect(() => {
     if (!ready || !setupApplied || !scoreHost.current) return;
     let cancelled = false;
-    (async () => {
+    let resizeTimer = null;
+    let observer = null;
+
+    async function renderScore() {
       const { OpenSheetMusicDisplay } = await import('opensheetmusicdisplay');
-      if (cancelled) return;
+      if (cancelled || !scoreHost.current) return;
+
       scoreHost.current.innerHTML = '';
+      const width = scoreHost.current.clientWidth || 1000;
+      let adaptiveMeasures = width < 820 ? 3 : width < 1180 ? 4 : width < 1500 ? 5 : 6;
+      if (scoreView === 'tab') adaptiveMeasures += 1;
+      adaptiveMeasures = Math.max(3, Math.min(7, adaptiveMeasures));
+      setMeasuresPerLine(adaptiveMeasures);
+
       const viewer = new OpenSheetMusicDisplay(scoreHost.current, {
-        autoResize: true,
+        autoResize: false,
+        backend: 'svg',
         drawingParameters: 'compacttight',
         drawTitle: false,
       });
+
       await viewer.load(`${API}/jobs/${job.id}/musicxml?view=${scoreView}&ts=${Date.now()}`);
+      if (cancelled) return;
+
+      viewer.Zoom = scoreZoom;
+      const rules = viewer.EngravingRules;
+      rules.PageLeftMargin = 1.2;
+      rules.PageRightMargin = 1.2;
+      rules.PageTopMargin = 1.0;
+      rules.PageBottomMargin = 2.5;
+      rules.SystemLeftMargin = 0.0;
+      rules.SystemRightMargin = 0.0;
+      rules.MinimumDistanceBetweenSystems = scoreView === 'tab' ? 5.0 : 6.2;
+      rules.MinSkyBottomDistBetweenSystems = scoreView === 'tab' ? 3.5 : 4.2;
+      rules.BetweenStaffDistance = scoreView === 'tab' ? 3.2 : 4.2;
+      rules.TabStaffInterlineHeight = scoreView === 'tab' ? 1.24 : 1.16;
+      rules.TabStaffInterlineHeightForBboxes = scoreView === 'tab' ? 1.44 : 1.34;
+      rules.RenderXMeasuresPerLineAkaSystem = adaptiveMeasures;
+      rules.StretchLastSystemLine = false;
+      rules.LastSystemMaxScalingFactor = 1.15;
+
       await viewer.render();
       viewer.cursor.show();
       viewer.cursor.reset();
       osmd.current = viewer;
       cursorIndex.current = -1;
-    })().catch(e => setMessage(`Score render error: ${e.message}`));
-    return () => { cancelled = true; };
-  }, [ready, setupApplied, job?.id, job?.result?.tuning, job?.result?.musicxml, job?.result?.musicxml_tab, correctionCount, scoreView]);
+    }
+
+    renderScore().catch(e => setMessage(`Score render error: ${e.message}`));
+
+    observer = new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        renderScore().catch(() => {});
+      }, 180);
+    });
+    observer.observe(scoreHost.current);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(resizeTimer);
+      if (observer) observer.disconnect();
+    };
+  }, [ready, setupApplied, job?.id, job?.result?.tuning, job?.result?.musicxml, job?.result?.musicxml_tab, correctionCount, scoreView, scoreZoom]);
 
   function getSynthContext() {
     if (!synthContext.current) {
@@ -636,6 +692,10 @@ export default function Home() {
       synthScheduledUntil.current = next;
       startTabSynth();
     }
+  }
+
+  function fitScore() {
+    setScoreZoom(scoreView === 'tab' ? 1.12 : 1.06);
   }
 
   const statusLabel = job?.status === 'failed'
@@ -897,6 +957,13 @@ export default function Home() {
                   <button className={scoreView === 'tab' ? 'active' : ''} onClick={() => setScoreView('tab')}>{t.tabOnly}</button>
                 </div>
 
+                <div className="zoomControls">
+                  <button onClick={() => setScoreZoom(z => Math.max(0.82, Number((z - 0.08).toFixed(2))))}>−</button>
+                  <span>{Math.round(scoreZoom * 100)}%</span>
+                  <button onClick={() => setScoreZoom(z => Math.min(1.48, Number((z + 0.08).toFixed(2))))}>＋</button>
+                  <button className="fitButton" onClick={fitScore}>{t.fit}</button>
+                </div>
+
                 <button className="panelToggle" onClick={() => setRightOpen(v => !v)}>
                   {rightOpen ? t.hideInspector : t.showInspector} {rightOpen ? '▶' : '◀'}
                 </button>
@@ -906,6 +973,7 @@ export default function Home() {
                 <span>{tuning.replaceAll('_', ' ')}</span>
                 <span>{profile}</span>
                 <span>Capo {capo}</span>
+                <span>{measuresPerLine} {t.measuresPerLine}</span>
               </div>
             </div>
             <div className="scoreCanvas">
