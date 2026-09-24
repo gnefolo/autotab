@@ -1,75 +1,45 @@
 # First local run
 
-This is the shortest path if you have not run AutoTab before.
-
-## 1. Prerequisites
-
-Install:
-
-- Git
-- Python 3.10 or newer
-- Node.js 18 or newer (includes npm)
-
-On macOS, if you already have Homebrew:
-
-```bash
-brew install git python node
-```
-
-You do **not** need to create a Python environment or run `npm install` manually.
-
-## 2. Clone AutoTab
-
-```bash
-git clone https://github.com/gnefolo/autotab.git
-cd autotab
-```
-
-## 3. Start the application
-
-To see the UI and run the API:
+## Standard UI/API
 
 ```bash
 ./start-autotab.sh
 ```
 
-AutoTab will open:
+The standard launcher can use Python 3.10 or newer.
 
-- Web app: `http://localhost:3000`
-- API docs: `http://localhost:8000/docs`
+## Full song analysis on Apple Silicon
 
-Use `Ctrl+C` in the terminal to stop everything.
+Spotify Basic Pitch officially supports Apple Silicon with Python 3.10. AutoTab therefore uses a separate `apps/api/.venv-ml` environment for full audio analysis and leaves the normal Python 3.12 environment untouched.
 
-## 4. Enable real song analysis
+Install Python 3.10 once:
 
-The source-separation/transcription stack is much heavier, so install it only when you are ready to analyze real audio:
+```bash
+brew install python@3.10
+```
+
+Then:
 
 ```bash
 ./start-autotab.sh --ml
 ```
 
-This installs Basic Pitch and Demucs into the same local virtual environment and then launches AutoTab normally.
+The launcher will ensure `ffmpeg` and `libsndfile` are available through Homebrew, install pinned Basic Pitch/Demucs versions, verify both imports, then start the API and web app.
 
-## Troubleshooting
+Expected startup:
 
-### Permission denied
-
-If your local checkout lost executable permissions:
-
-```bash
-chmod +x start-autotab.sh
-./start-autotab.sh
+```text
+[AutoTab] Using python3.10 (Python 3.10)
+[AutoTab] Full audio-analysis stack: READY
 ```
 
-### Port already in use
+## Why not Python 3.12 for ML on Apple Silicon?
 
-AutoTab needs ports 3000 and 8000. The launcher stops before starting if one is already occupied.
+Basic Pitch 0.4.0 documents Apple Silicon support specifically on Python 3.10. Using Python 3.12 can trigger TensorFlow/ONNX dependency backtracking and pip `resolution-too-deep`.
 
-### Update to the latest version
-
-From the repository directory:
+## Updating
 
 ```bash
 git pull origin main
-./start-autotab.sh
+./start-autotab.sh --ml
 ```
