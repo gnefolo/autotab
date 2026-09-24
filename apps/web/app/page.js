@@ -137,6 +137,9 @@ const COPY = {
     refineAction: 'Raffina trascrizione',
     refining: 'Rifinitura trascrizione…',
     refined: 'Trascrizione aggiornata',
+    fixSection: 'Correggi sezione',
+    fixingSection: 'Rianalisi sezione…',
+    sectionFixed: 'Sezione rianalizzata',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -256,6 +259,9 @@ const COPY = {
     refineAction: 'Refine transcription',
     refining: 'Refining transcription…',
     refined: 'Transcription updated',
+    fixSection: 'Fix section',
+    fixingSection: 'Reanalyzing section…',
+    sectionFixed: 'Section reanalyzed',
   }
 };
 
@@ -398,6 +404,38 @@ export default function Home() {
     }
   }
 
+
+
+  async function refineSection(window) {
+    if (!job?.id || !window || !selectedPart.startsWith('guitar')) return;
+    setRefining(true);
+    setMessage(t.fixingSection);
+    try {
+      const res = await fetch(`${API}/jobs/${job.id}/retranscribe-section`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start: window.start,
+          end: window.end,
+          mode: refineMode,
+          source: refineSource,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(data.detail || t.retuneFail);
+        return;
+      }
+      setJob(data);
+      setSelectedPart('guitar');
+      setAnalysisRevision(v => v + 1);
+      setMessage(t.sectionFixed);
+    } catch (error) {
+      setMessage(error?.message || t.apiFail);
+    } finally {
+      setRefining(false);
+    }
+  }
 
   async function refineTranscription() {
     if (!job?.id || !selectedPart.startsWith('guitar')) return;
@@ -959,7 +997,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.20</span>
+          <span className="versionTag">0.21</span>
         </div>
       </header>
 
@@ -1339,9 +1377,16 @@ export default function Home() {
                   </div>
                   <div className="weakWindowList">
                     {(confidenceData.weak_windows || []).slice(0, 5).map((w, i) => (
-                      <button key={i} onClick={() => seek(w.start)}>
-                        {fmt(w.start)}–{fmt(w.end)}
-                      </button>
+                      <div className="weakWindowRow" key={i}>
+                        <button onClick={() => seek(w.start)}>
+                          ▶ {fmt(w.start)}–{fmt(w.end)}
+                        </button>
+                        {selectedPart.startsWith('guitar') && (
+                          <button disabled={refining} onClick={() => refineSection(w)}>
+                            {t.fixSection}
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
