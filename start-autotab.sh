@@ -137,7 +137,8 @@ fi
 
 if [ ! -f "$CORE_MARKER" ]; then
   log "Installing backend dependencies..."
-  "$VENV/bin/python" -m pip install --upgrade pip setuptools wheel
+  "$VENV/bin/python" -m pip install --upgrade pip wheel
+  "$VENV/bin/python" -m pip install "setuptools<81"
   "$VENV/bin/python" -m pip install -r "$API_DIR/requirements.txt"
   touch "$CORE_MARKER"
 fi
@@ -146,7 +147,7 @@ if [ "$INSTALL_ML" -eq 1 ] && [ ! -f "$ML_MARKER" ]; then
   log "Installing ML dependencies in the Python 3.10 environment..."
   "$VENV/bin/python" -m pip install -r "$ROOT/packages/audio_pipeline/requirements-ml.txt"
   log "Verifying Demucs and Basic Pitch..."
-  "$VENV/bin/python" -c 'import demucs, basic_pitch; print("[AutoTab] ML imports OK")'
+  "$VENV/bin/python" -c 'import pkg_resources, demucs, basic_pitch; from basic_pitch.inference import predict; print("[AutoTab] ML imports OK")'
   "$VENV/bin/python" -m demucs --help >/dev/null 2>&1 || fail "Demucs installed but its CLI verification failed."
   touch "$ML_MARKER"
 fi
