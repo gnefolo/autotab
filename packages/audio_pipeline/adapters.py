@@ -35,7 +35,8 @@ class PassthroughSeparator(Separator):
 
 @dataclass
 class DemucsSeparator(Separator):
-    model: str = "htdemucs"
+    model: str = "htdemucs_6s"
+    fallback_model: str | None = "htdemucs"
     device: str | None = None
 
     def separate(self, audio_path: Path, output_dir: Path) -> dict[str, Path]:
@@ -48,34 +49,43 @@ class DemucsSeparator(Separator):
         # Always invoke Demucs through the same Python interpreter that runs
         # AutoTab. This avoids PATH mismatches between the core venv, ML venv,
         # Homebrew and system Python on macOS.
-        cmd = [sys.executable, "-m", "demucs", "-n", self.model, "-o", str(output_dir)]
-        if self.device:
-            cmd += ["-d", self.device]
-        cmd.append(str(audio_path))
-        try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                f"Python executable not found while launching Demucs: {sys.executable}"
-            ) from exc
-        except subprocess.CalledProcessError as exc:
-            stdout = (exc.stdout or "")[-3000:]
-            stderr = (exc.stderr or "")[-5000:]
-            raise RuntimeError(
-                "Demucs failed.\n"
-                f"Command: {' '.join(cmd)}\n"
-                f"stdout:\n{stdout}\n"
-                f"stderr:\n{stderr}"
-            ) from exc
+        models = [self.model]
+        if self.fallback_model and self.fallback_model != self.model:
+            models.append(self.fallback_model)
 
-        song_dir = output_dir / self.model / audio_path.stem
-        stems: dict[str, Path] = {}
-        if song_dir.exists():
-            for p in song_dir.glob("*.wav"):
-                stems[p.stem] = p
-        if not stems:
-            raise RuntimeError(f"Demucs produced no stems under {song_dir}")
-        return stems
+        failures: list[str] = []
+        for model in models:
+            cmd = [sys.executable, "-m", "demucs", "-n", model, "-o", str(output_dir)]
+            if self.device:
+                cmd += ["-d", self.device]
+            cmd.append(str(audio_path))
+            try:
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
+            except FileNotFoundError as exc:
+                raise RuntimeError(
+                    f"Python executable not found while launching Demucs: {sys.executable}"
+                ) from exc
+            except subprocess.CalledProcessError as exc:
+                stdout = (exc.stdout or "")[-3000:]
+                stderr = (exc.stderr or "")[-5000:]
+                failures.append(
+                    f"{model}: stdout={stdout!r} stderr={stderr!r}"
+                )
+                continue
+
+            song_dir = output_dir / model / audio_path.stem
+            stems: dict[str, Path] = {}
+            if song_dir.exists():
+                for p in song_dir.glob("*.wav"):
+                    stems[p.stem] = p
+            if stems:
+                stems["_autotab_model"] = Path(model)
+                return stems
+            failures.append(f"{model}: produced no stems under {song_dir}")
+
+        raise RuntimeError(
+            "Demucs failed for all configured models. " + " | ".join(failures)
+        )
 
 
 @dataclass
