@@ -1,3 +1,5 @@
-# Install these in the ML worker environment, not necessarily in the API image.
-basic-pitch[onnx]
-demucs
+# AutoTab local ML runtime.
+# Basic Pitch 0.4.0 officially supports Apple Silicon on Python 3.10.
+# Do not request the ONNX extra on macOS: Basic Pitch selects CoreML automatically.
+basic-pitch==0.4.0
+demucs==4.1.0
