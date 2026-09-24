@@ -372,3 +372,7 @@ input,select{border-radius:0}
 
 .sourceCandidateList{display:flex!important;flex-direction:column;align-items:flex-start!important;gap:3px!important}
 .sourceCandidateList small{font-size:9px;color:var(--muted)}
+
+.refinePanel{border:1px solid var(--border);background:var(--surface-1);padding:12px;margin:14px 0}
+.refineGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+@media(max-width:760px){.refineGrid{grid-template-columns:1fr}}
