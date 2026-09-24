@@ -48,7 +48,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.14.0")
+app = FastAPI(title="AutoTab API", version="0.15.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -188,7 +188,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.14.0"}
+    return {"status": "ok", "version": "0.15.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -369,6 +369,9 @@ def job_parts(job_id: str):
                 "kind": value.get("kind", "strings"),
                 "stem": value.get("stem"),
                 "note_count": len(value.get("notes", [])) if value.get("kind") != "drums" else len(value.get("events", [])),
+                "virtual": bool(value.get("virtual", False)),
+                "role_confidence": value.get("role_confidence"),
+                "role_explanation": value.get("role_explanation", []),
             }
             for key, value in tracks.items()
         ],
@@ -537,7 +540,7 @@ def retune_job(job_id: str, payload: RetuneRequest):
     )
     get_profile(payload.profile)
 
-    model = _load_ranker() if payload.use_learned_ranker and payload.part == "guitar" else None
+    model = _load_ranker() if payload.use_learned_ranker and payload.part.startswith("guitar") else None
     if model is not None and model.examples > 0:
         tab = optimize_polyphonic_fingering_learned(
             events, tuning, model, profile=payload.profile, strength=payload.ranker_strength
