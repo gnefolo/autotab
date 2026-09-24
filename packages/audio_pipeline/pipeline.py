@@ -36,6 +36,7 @@ class AudioPipeline:
     transcriber: Transcriber
     bass_transcriber: Transcriber | None = None
     piano_transcriber: Transcriber | None = None
+    drum_transcriber: object | None = None
 
     def run(
         self,
@@ -97,6 +98,21 @@ class AudioPipeline:
                 "stem": "piano",
                 "source_path": str(piano_stem),
                 "notes": [asdict(n) for n in piano_notes],
+            }
+
+
+
+        drum_stem = stems.get("drums")
+        if drum_stem is not None and self.drum_transcriber is not None:
+            progress(72, "transcribing_drums")
+            drum_events = self.drum_transcriber.transcribe(drum_stem)
+            tracks["drums"] = {
+                "part": "drums",
+                "kind": "drums",
+                "stem": "drums",
+                "source_path": str(drum_stem),
+                "events": [event.to_dict() for event in drum_events],
+                "notes": [],
             }
 
 
