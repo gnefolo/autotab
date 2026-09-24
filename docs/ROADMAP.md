@@ -117,3 +117,16 @@ Remaining hardening: infer likely recorded tuning from pitch-class/fretboard con
 - post-analysis Guitar / Bass selector in IT/EN UI
 
 Remaining hardening: guitar-specific source separation, Guitar 1 / Guitar 2 identification, vocals/instrument classification, drum transcription, per-part tempo/voice handling, per-instrument technique models, and learned part recognition.
+
+
+## Milestone 12 - Six-Stem Guitar Routing - DONE (v0.12 baseline)
+- prefer official Demucs `htdemucs_6s` for drums, bass, other, vocals, piano and guitar
+- automatic fallback to `htdemucs` when six-stem separation fails
+- direct Guitar stem routing when `guitar.wav` is available
+- legacy `other.wav` guitar fallback retained
+- Bass stem routing preserved
+- Piano stem exposed in the mixer but intentionally not sent to the string-fingering engine
+- diagnostics expose preferred and fallback separation models
+- tests verify direct guitar routing and piano stem availability
+
+Remaining hardening: guitar-specific multi-guitar separation, Guitar 1 / Guitar 2 / lead-rhythm classification, piano score transcription, drum event transcription, and separator benchmarking on real songs.
