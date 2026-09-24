@@ -256,3 +256,21 @@ Remaining hardening: benchmark source selection against verified ground truth, l
 This milestone adds the expert override workflow observed in mature transcription products while preserving AutoTab's simple default flow: upload -> analyze -> optionally refine -> setup -> generate TAB.
 
 Remaining hardening: asynchronous refinement jobs, A/B compare between refinements, automatic profile recommendation, section-only retranscription, model ensembles beyond Basic Pitch and persistent refinement history.
+
+
+## Milestone 21 - Fix This Section - DONE (v0.21 baseline)
+- reanalyze only a selected low-confidence guitar window without rerunning Demucs
+- extract the requested section from the already-separated guitar source with FFmpeg
+- use the currently selected precise/balanced/sensitive AMT profile
+- optionally force auto / guitar / guitar_alt / other source
+- replace only note events whose onset falls inside the selected window
+- preserve the rest of the song unchanged
+- rerun repeated-riff consistency after local replacement
+- refresh confidence diagnostics and inferred Rhythm/Lead parts
+- expose one-click section repair actions directly on weak-confidence windows
+- cap a local refinement request at 30 seconds
+- tests cover safe note-window replacement semantics
+
+This milestone turns the confidence map from a passive diagnostic into an actionable correction workflow.
+
+Remaining hardening: asynchronous section jobs, automatic mode recommendation per weak window, A/B preview before accepting a section replacement, undo/redo for section refinements, and guitar-specific second-opinion models.
