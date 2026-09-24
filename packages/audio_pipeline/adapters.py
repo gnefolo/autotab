@@ -89,9 +89,14 @@ class BasicPitchTranscriber(Transcriber):
         try:
             from basic_pitch import ICASSP_2022_MODEL_PATH
             from basic_pitch.inference import predict
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "Basic Pitch dependency import failed: "
+                f"{exc}. The package may be installed but its runtime dependencies are incomplete."
+            ) from exc
         except ImportError as exc:
             raise RuntimeError(
-                "Basic Pitch is not installed. Install packages/audio_pipeline/requirements-ml.txt"
+                f"Basic Pitch import failed: {exc}"
             ) from exc
 
         # Pass the model path explicitly. This avoids API-version ambiguity and
