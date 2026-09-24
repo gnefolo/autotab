@@ -56,16 +56,28 @@ version_major() {
   printf '%s' "$1" | sed -E 's/[^0-9]*([0-9]+).*/\1/'
 }
 
-need_command python3 "Python 3 is required. On macOS install it from python.org or with Homebrew: brew install python"
 need_command node "Node.js 18+ is required. Install it from nodejs.org or with Homebrew: brew install node"
 need_command npm "npm is required and normally ships with Node.js."
 
-PY_VERSION="$(python3 -c 'import sys; print(sys.version_info.major, sys.version_info.minor)')"
-PY_MAJOR="$(printf '%s' "$PY_VERSION" | awk '{print $1}')"
-PY_MINOR="$(printf '%s' "$PY_VERSION" | awk '{print $2}')"
-if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]; }; then
-  fail "Python 3.10+ is required. Found Python $PY_VERSION."
+PYTHON_BIN=""
+for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    VERSION="$("$candidate" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+    MAJOR="$(printf '%s' "$VERSION" | cut -d. -f1)"
+    MINOR="$(printf '%s' "$VERSION" | cut -d. -f2)"
+    if [ "$MAJOR" -gt 3 ] || { [ "$MAJOR" -eq 3 ] && [ "$MINOR" -ge 10 ]; }; then
+      PYTHON_BIN="$candidate"
+      PY_VERSION="$VERSION"
+      break
+    fi
+  fi
+done
+
+if [ -z "$PYTHON_BIN" ]; then
+  fail "Python 3.10+ is required. Install Python 3.12 with: brew install python@3.12"
 fi
+
+log "Using $PYTHON_BIN (Python $PY_VERSION)"
 
 NODE_VERSION="$(node --version)"
 NODE_MAJOR="$(version_major "$NODE_VERSION")"
@@ -91,7 +103,7 @@ fi
 
 if [ ! -x "$VENV/bin/python" ]; then
   log "Creating Python virtual environment..."
-  python3 -m venv "$VENV"
+  "$PYTHON_BIN" -m venv "$VENV"
 fi
 
 if [ ! -f "$CORE_MARKER" ]; then
