@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 from music_engine.engine import NoteEvent
 
@@ -44,16 +45,28 @@ class DemucsSeparator(Separator):
         is not coupled to Demucs internals. Install Demucs in the worker image.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
-        cmd = ["demucs", "-n", self.model, "-o", str(output_dir)]
+        # Always invoke Demucs through the same Python interpreter that runs
+        # AutoTab. This avoids PATH mismatches between the core venv, ML venv,
+        # Homebrew and system Python on macOS.
+        cmd = [sys.executable, "-m", "demucs", "-n", self.model, "-o", str(output_dir)]
         if self.device:
             cmd += ["-d", self.device]
         cmd.append(str(audio_path))
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
         except FileNotFoundError as exc:
-            raise RuntimeError("Demucs CLI not found. Install the ML worker dependencies.") from exc
+            raise RuntimeError(
+                f"Python executable not found while launching Demucs: {sys.executable}"
+            ) from exc
         except subprocess.CalledProcessError as exc:
-            raise RuntimeError(f"Demucs failed: {exc.stderr[-2000:]}") from exc
+            stdout = (exc.stdout or "")[-3000:]
+            stderr = (exc.stderr or "")[-5000:]
+            raise RuntimeError(
+                "Demucs failed.\n"
+                f"Command: {' '.join(cmd)}\n"
+                f"stdout:\n{stdout}\n"
+                f"stderr:\n{stderr}"
+            ) from exc
 
         song_dir = output_dir / self.model / audio_path.stem
         stems: dict[str, Path] = {}
