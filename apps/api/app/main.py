@@ -49,7 +49,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.17.0")
+app = FastAPI(title="AutoTab API", version="0.18.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -202,7 +202,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.17.0"}
+    return {"status": "ok", "version": "0.18.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -451,6 +451,7 @@ def job_parts(job_id: str):
                 "role_confidence": value.get("role_confidence"),
                 "role_explanation": value.get("role_explanation", []),
                 "transcription_engine": value.get("transcription_engine"),
+                "riff_consistency": value.get("riff_consistency"),
             }
             for key, value in tracks.items()
         ],
