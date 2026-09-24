@@ -238,3 +238,21 @@ Remaining hardening: phrase segmentation from beat/downbeat structure, transposi
 This milestone is particularly targeted at sparse recordings such as voice + guitar, where the four-stem `other` source can sometimes preserve guitar attacks better than the six-stem dedicated guitar output.
 
 Remaining hardening: benchmark source selection against verified ground truth, learn source-quality scoring from data, allow manual source override, cache dual-separation outputs, and compare additional separators.
+
+
+## Milestone 20 - Refine Transcription Workflow - DONE (v0.20 baseline)
+- add post-analysis guitar retranscription without rerunning Demucs
+- AMT profiles: precise, balanced and sensitive
+- precise profile raises thresholds and cleanup strictness to reduce false positives
+- sensitive profile lowers thresholds to recover more notes
+- allow source mode: auto, dedicated six-stem guitar, alternate four-stem guitar source
+- rebuild confidence diagnostics after refinement
+- rebuild Rhythm Guitar / Lead Guitar inferred parts after refinement
+- refresh tuning suggestions against the new canonical note events
+- expose the active AMT profile through transcription engine metadata
+- preserve source selection and repeated-riff consistency after refinement
+- tests cover preset construction and strictness ordering
+
+This milestone adds the expert override workflow observed in mature transcription products while preserving AutoTab's simple default flow: upload -> analyze -> optionally refine -> setup -> generate TAB.
+
+Remaining hardening: asynchronous refinement jobs, A/B compare between refinements, automatic profile recommendation, section-only retranscription, model ensembles beyond Basic Pitch and persistent refinement history.
