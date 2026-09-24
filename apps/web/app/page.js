@@ -469,6 +469,7 @@ export default function Home() {
     } else if (selectedPart === 'piano') {
       setScoreView('full');
       setUseRanker(false);
+      setRightOpen(false);
     }
   }, [selectedPart]);
 
@@ -1107,7 +1108,7 @@ export default function Home() {
                 <div className="sectionLabel">{t.analysis}</div>
                 <div className="statGrid">
                   <div><span>{t.bpm}</span><strong>{job.result.rhythm?.bpm || '—'}</strong></div>
-                  <div><span>{t.notes}</span><strong>{job.result.tab?.length || 0}</strong></div>
+                  <div><span>{t.notes}</span><strong>{selectedPart === 'piano' ? (job.result.notes?.length || 0) : (job.result.tab?.length || 0)}</strong></div>
                   <div><span>{t.filtered}</span><strong>{diagnostics.filtered_out_of_range?.length || 0}</strong></div>
                   <div><span>{t.corrections}</span><strong>{correctionCount}</strong></div>
                 </div>
@@ -1157,9 +1158,9 @@ export default function Home() {
 
               <div className="scoreMeta">
                 <span>{partLabel(selectedPart)}</span>
-                <span>{tuning.replaceAll('_', ' ')}</span>
-                <span>{profile}</span>
-                <span>Capo {capo}</span>
+                {selectedPart !== 'piano' && <span>{tuning.replaceAll('_', ' ')}</span>}
+                {selectedPart !== 'piano' && <span>{profile}</span>}
+                {selectedPart !== 'piano' && <span>Capo {capo}</span>}
                 <span>{measuresPerLine} {t.measuresPerLine}</span>
               </div>
             </div>
@@ -1168,7 +1169,7 @@ export default function Home() {
             </div>
           </section>
 
-          {rightOpen && <aside className="rightInspector">
+          {rightOpen && selectedPart !== 'piano' && <aside className="rightInspector">
             <div className="panelHeader">
               <span className="sectionKicker">INSPECTOR</span>
               <strong>{t.inspector}</strong>
