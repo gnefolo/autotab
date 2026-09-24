@@ -347,3 +347,8 @@ input,select{border-radius:0}
 .partStatus{display:flex;align-items:center;gap:10px;border:1px solid var(--border);padding:7px 10px;background:#0f1214}
 .partStatus span{font-size:8px;text-transform:uppercase;letter-spacing:.12em;color:var(--soft)}
 .partStatus strong{font-size:11px;color:var(--text)}
+
+.pianoModeCard{border:1px solid var(--border);background:var(--surface-1);padding:14px;margin:10px 0 14px}
+.pianoSummary{margin-top:24px;border:1px solid var(--border);background:#0f1214;padding:22px;display:inline-flex;flex-direction:column;min-width:150px}
+.pianoSummary span{font-size:34px;font-weight:900;line-height:1;color:var(--accent)}
+.pianoSummary small{margin-top:8px;font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--soft)}
