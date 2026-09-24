@@ -1,0 +1,22 @@
+name: AutoTab tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  music-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Music engine tests
+        run: python -m unittest discover -s packages/music_engine/tests -p 'test_*.py' -v
+      - name: Audio pipeline contract tests
+        run: python -m unittest discover -s packages/audio_pipeline/tests -p 'test_*.py' -v
+      - name: Compile Python sources
+        run: python -m compileall -q packages apps/api/app

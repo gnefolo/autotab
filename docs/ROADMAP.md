@@ -69,7 +69,18 @@ Remaining hardening: harmonic context/key-aware spelling, richer extensions, fin
 - persistent JSONL correction dataset
 - aggregate training-data API
 
-Remaining hardening: direct score-glyph editing, undo/redo, database persistence, richer context features and learned fingering ranker.
+Remaining hardening: direct score-glyph editing, undo/redo, database persistence and richer context features.
+
+## Milestone 9 - Learned Fingering Ranker - DONE (v0.9 baseline)
+- pairwise preference learning from prediction → correction records
+- lightweight linear model with deterministic training
+- learned cost blended with heuristic playability
+- adjustable ranker strength
+- safe fallback when no model/data exists
+- model train/status API
+- player controls for training and activation
+
+Remaining hardening: validation split/metrics, per-user and global models, richer contextual features, online learning and a nonlinear ranker once enough data exists.
 
 
 ## Milestone 5 — Practice player ✅

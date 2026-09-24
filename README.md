@@ -1,4 +1,4 @@
-# AutoTab MVP v0.8
+# AutoTab MVP v0.9
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -117,3 +117,13 @@ The API defaults to `http://localhost:8000`. Override with `NEXT_PUBLIC_AUTOTAB_
 - persistent correction history per job
 - regenerated MusicXML after every correction
 - aggregate prediction → correction dataset endpoint for future learned ranking
+
+
+## Milestone 9 — Learned Fingering Ranker
+- pairwise linear ranker trained from human corrections
+- deterministic, dependency-free training
+- learned position preference blended with heuristic playability cost
+- adjustable learned-ranker strength
+- automatic deterministic fallback when no trained model exists
+- ranker train/status API
+- player controls to train, enable and tune the learned ranker

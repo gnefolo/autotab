@@ -16,6 +16,8 @@ class InstrumentSetup(BaseModel):
     capo: int = Field(default=0, ge=0, le=12)
     custom_open_pitches: list[int] | None = None
     custom_name: str = "Custom tuning"
+    use_learned_ranker: bool = False
+    ranker_strength: float = Field(default=0.55, ge=0.0, le=2.0)
 
 
 class TabRequest(InstrumentSetup):

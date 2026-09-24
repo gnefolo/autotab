@@ -20,6 +20,7 @@ const fmt = s => `${Math.floor((s||0)/60)}:${String(Math.floor((s||0)%60)).padSt
 export default function Home() {
   const [file,setFile]=useState(null), [tuning,setTuning]=useState('guitar_drop_d');
   const [profile,setProfile]=useState('original_like'), [capo,setCapo]=useState(0), [custom,setCustom]=useState('');
+  const [useRanker,setUseRanker]=useState(false), [rankerStrength,setRankerStrength]=useState(0.55), [rankerStatus,setRankerStatus]=useState(null);
   const [message,setMessage]=useState(''), [job,setJob]=useState(null), [speed,setSpeed]=useState(1);
   const [loopA,setLoopA]=useState(null), [loopB,setLoopB]=useState(null), [current,setCurrent]=useState(0);
   const [mix,setMix]=useState({original:{volume:1,muted:false}}), [solo,setSolo]=useState(null);
@@ -36,7 +37,7 @@ export default function Home() {
     return {
       tuning, profile, capo,
       custom_open_pitches: custom.trim()?custom.split(',').map(x=>Number(x.trim())):null,
-      custom_name:'Custom tuning'
+      custom_name:'Custom tuning', use_learned_ranker:useRanker, ranker_strength:rankerStrength
     };
   }
   function stopPolling(){ if(timer.current) clearTimeout(timer.current); timer.current=null; }
@@ -93,6 +94,7 @@ export default function Home() {
   }
 
   useEffect(()=>()=>stopPolling(),[]);
+  useEffect(()=>{ fetch(`${API}/ranker/status`).then(r=>r.json()).then(setRankerStatus).catch(()=>{}); },[]);
   useEffect(()=>{ if(audio.current) audio.current.playbackRate=speed; Object.values(stemAudios.current).forEach(a=>{if(a)a.playbackRate=speed;}); },[speed]);
   useEffect(()=>{
     if(!ready)return;
@@ -147,7 +149,7 @@ export default function Home() {
   }
 
   return <main className="shell">
-    <div className="topbar"><div className="brand">AUTOTAB</div><div className="badge">MVP 0.8 · HUMAN CORRECTION LOOP</div></div>
+    <div className="topbar"><div className="brand">AUTOTAB</div><div className="badge">MVP 0.9 · LEARNED FINGERING RANKER</div></div>
     <section className="hero"><h1>Turn audio into something you can actually play.</h1><p>Transcribe, retune, practise, correct the fingering and turn every edit into reusable training data.</p></section>
     <div className="grid">
       <aside className="panel">
@@ -158,6 +160,7 @@ export default function Home() {
         <div className="label" style={{marginTop:14}}>Playing profile</div>
         <select className="field" value={profile} onChange={e=>setProfile(e.target.value)}><option value="original_like">Original-like</option><option value="easy">Easy</option><option value="rhythm">Rhythm</option><option value="lead">Lead</option></select>
         <div className="row" style={{marginTop:14}}><div><div className="label">Capo</div><input className="field" type="number" min="0" max="12" value={capo} onChange={e=>setCapo(Number(e.target.value))}/></div><div><div className="label">Custom tuning · MIDI</div><input className="field" placeholder="38,45,50,55,59,64" value={custom} onChange={e=>setCustom(e.target.value)}/></div></div>
+        <div className="mixer" style={{marginTop:14}}><div className="label">Learned ranker</div><label className="small"><input type="checkbox" checked={useRanker} onChange={e=>setUseRanker(e.target.checked)}/> Use learned fingering preferences</label><input style={{width:'100%',marginTop:8}} type="range" min="0" max="1.5" step="0.05" value={rankerStrength} onChange={e=>setRankerStrength(Number(e.target.value))}/><div className="small">Strength {rankerStrength.toFixed(2)} · {rankerStatus?.examples||0} training corrections</div><button className="btn secondary" style={{marginTop:8}} onClick={async()=>{const r=await fetch(`${API}/ranker/train`,{method:'POST'});const d=await r.json();setRankerStatus(d);setMessage(`Ranker trained on ${d.examples||0} corrections`);}}>Train / refresh ranker</button></div>
         <button className="btn" disabled={!file} onClick={upload} style={{marginTop:16}}>Analyze track</button>
         {ready&&<button className="btn secondary" onClick={retune} style={{marginTop:8}}>Regenerate TAB</button>}
         <div className={`status ${job?.status==='failed'?'error':''}`}>{message}</div>

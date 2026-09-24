@@ -30,6 +30,7 @@ from music_engine.corrections import (
     optimize_with_anchors,
 )
 from music_engine.intelligence import analyze_guitar_intelligence
+from music_engine.learned_ranker import LearnedRankerModel, optimize_polyphonic_fingering_learned, train_pairwise_ranker
 from music_engine.rhythm import TimeSignature, quantize_tab_notes
 from music_engine.musicxml import export_musicxml
 
@@ -40,7 +41,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.8.0")
+app = FastAPI(title="AutoTab API", version="0.9.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -56,6 +57,8 @@ class RetuneRequest(BaseModel):
     capo: int = Field(default=0, ge=0, le=12)
     custom_open_pitches: list[int] | None = None
     custom_name: str = "Custom tuning"
+    use_learned_ranker: bool = False
+    ranker_strength: float = Field(default=0.55, ge=0.0, le=2.0)
 
 
 class CorrectionRequest(RetuneRequest):
@@ -99,9 +102,26 @@ def _append_correction(job_id: str, row: dict) -> None:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def _ranker_path() -> pathlib.Path:
+    path = ROOT / "artifacts" / "models" / "fingering_ranker.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _load_ranker() -> LearnedRankerModel | None:
+    path = _ranker_path()
+    if not path.exists():
+        return None
+    return LearnedRankerModel.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+
+def _save_ranker(model: LearnedRankerModel) -> None:
+    _ranker_path().write_text(json.dumps(model.to_dict(), indent=2), encoding="utf-8")
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.8.0"}
+    return {"status": "ok", "version": "0.9.0"}
 
 
 @app.get("/tunings")
@@ -283,7 +303,15 @@ def retune_job(job_id: str, payload: RetuneRequest):
     get_profile(payload.profile)
 
     events = [NoteEvent(**note) for note in job.result.get("notes", [])]
-    tab = optimize_polyphonic_fingering(events, tuning, profile=payload.profile)
+    model = _load_ranker() if payload.use_learned_ranker else None
+    if model is not None and model.examples > 0:
+        tab = optimize_polyphonic_fingering_learned(
+            events, tuning, model, profile=payload.profile, strength=payload.ranker_strength
+        )
+        ranker_meta = {"enabled": True, "examples": model.examples, "version": model.version, "strength": payload.ranker_strength}
+    else:
+        tab = optimize_polyphonic_fingering(events, tuning, profile=payload.profile)
+        ranker_meta = {"enabled": False, "examples": model.examples if model else 0}
 
     rhythm = job.result.get("rhythm", {})
     cfg, quantized = quantize_tab_notes(
@@ -312,6 +340,7 @@ def retune_job(job_id: str, payload: RetuneRequest):
             "capo": payload.capo,
             "musicxml": str(out),
             "intelligence": analyze_guitar_intelligence(tab),
+            "ranker": ranker_meta,
         }
     )
     return job.__dict__
@@ -462,3 +491,20 @@ def corrections_dataset():
             job_id = path.parent.name
             rows.extend(_read_corrections(job_id))
     return {"count": len(rows), "records": rows}
+
+
+
+@app.post("/ranker/train")
+def train_ranker():
+    dataset = corrections_dataset()["records"]
+    model = train_pairwise_ranker(dataset)
+    _save_ranker(model)
+    return model.to_dict()
+
+
+@app.get("/ranker/status")
+def ranker_status():
+    model = _load_ranker()
+    if model is None:
+        return {"trained": False, "examples": 0}
+    return {"trained": model.examples > 0, **model.to_dict()}
