@@ -9,6 +9,7 @@ from music_engine.rhythm import TimeSignature, quantize_tab_notes
 from music_engine.musicxml import export_musicxml
 from music_engine.techniques import detect_technique_hints
 from music_engine.guitar_roles import split_guitar_roles
+from music_engine.accuracy import confidence_summary
 from .adapters import Separator, Transcriber
 
 
@@ -73,6 +74,7 @@ class AudioPipeline:
                 "stem": "guitar" if preferred_stem in stems else "other",
                 "source_path": str(guitar_stem),
                 "notes": [asdict(n) for n in guitar_notes],
+                "confidence": confidence_summary(guitar_notes),
             }
 
             role_split = split_guitar_roles(guitar_notes)
@@ -84,6 +86,7 @@ class AudioPipeline:
                     "stem": "guitar" if preferred_stem in stems else "other",
                     "source_path": str(guitar_stem),
                     "notes": [asdict(n) for n in role_split.rhythm],
+                    "confidence": confidence_summary(role_split.rhythm),
                     "role_confidence": role_split.confidence,
                     "role_explanation": list(role_split.explanation),
                 }
@@ -95,6 +98,7 @@ class AudioPipeline:
                     "stem": "guitar" if preferred_stem in stems else "other",
                     "source_path": str(guitar_stem),
                     "notes": [asdict(n) for n in role_split.lead],
+                    "confidence": confidence_summary(role_split.lead),
                     "role_confidence": role_split.confidence,
                     "role_explanation": list(role_split.explanation),
                 }
@@ -110,6 +114,7 @@ class AudioPipeline:
                 "stem": "bass",
                 "source_path": str(bass_stem),
                 "notes": [asdict(n) for n in bass_notes],
+                "confidence": confidence_summary(bass_notes),
             }
 
 
@@ -123,6 +128,7 @@ class AudioPipeline:
                 "stem": "piano",
                 "source_path": str(piano_stem),
                 "notes": [asdict(n) for n in piano_notes],
+                "confidence": confidence_summary(piano_notes),
             }
 
 
@@ -150,6 +156,7 @@ class AudioPipeline:
                 "stem": next(iter(stems.keys())),
                 "source_path": str(fallback_stem),
                 "notes": [asdict(n) for n in fallback_notes],
+                "confidence": confidence_summary(fallback_notes),
             }
 
         selected_part = "guitar" if "guitar" in tracks else next(iter(tracks))
