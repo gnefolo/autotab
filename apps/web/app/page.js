@@ -126,6 +126,17 @@ const COPY = {
     riffFixes: 'Correzioni riff',
     guitarSource: 'Sorgente chitarra',
     sourceCandidates: 'Candidati sorgente',
+    refineTitle: 'Raffina trascrizione',
+    refineHelp: 'Rilancia solo il riconoscimento note sugli stem già separati. Non viene rieseguito Demucs.',
+    refineMode: 'Profilo AMT',
+    preciseMode: 'Preciso · meno falsi positivi',
+    balancedMode: 'Bilanciato',
+    sensitiveMode: 'Sensibile · più note',
+    refineSource: 'Sorgente',
+    autoSource: 'Auto · scegli la migliore',
+    refineAction: 'Raffina trascrizione',
+    refining: 'Rifinitura trascrizione…',
+    refined: 'Trascrizione aggiornata',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -234,6 +245,17 @@ const COPY = {
     riffFixes: 'Riff consistency fixes',
     guitarSource: 'Guitar source',
     sourceCandidates: 'Source candidates',
+    refineTitle: 'Refine transcription',
+    refineHelp: 'Rerun note recognition on the already-separated stems. Demucs is not run again.',
+    refineMode: 'AMT profile',
+    preciseMode: 'Precise · fewer false positives',
+    balancedMode: 'Balanced',
+    sensitiveMode: 'Sensitive · more notes',
+    refineSource: 'Source',
+    autoSource: 'Auto · choose the best',
+    refineAction: 'Refine transcription',
+    refining: 'Refining transcription…',
+    refined: 'Transcription updated',
   }
 };
 
@@ -272,6 +294,10 @@ export default function Home() {
   const [scoreZoom, setScoreZoom] = useState(1.08);
   const [measuresPerLine, setMeasuresPerLine] = useState(4);
   const [confidenceData, setConfidenceData] = useState(null);
+  const [refineMode, setRefineMode] = useState('balanced');
+  const [refineSource, setRefineSource] = useState('auto');
+  const [refining, setRefining] = useState(false);
+  const [analysisRevision, setAnalysisRevision] = useState(0);
 
   const timer = useRef(null);
   const audio = useRef(null);
@@ -372,6 +398,33 @@ export default function Home() {
     }
   }
 
+
+  async function refineTranscription() {
+    if (!job?.id || !selectedPart.startsWith('guitar')) return;
+    setRefining(true);
+    setMessage(t.refining);
+    try {
+      const res = await fetch(`${API}/jobs/${job.id}/retranscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: refineMode, source: refineSource }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(data.detail || t.retuneFail);
+        return;
+      }
+      setJob(data);
+      setSelectedPart('guitar');
+      setAnalysisRevision(v => v + 1);
+      setMessage(t.refined);
+    } catch (error) {
+      setMessage(error?.message || t.apiFail);
+    } finally {
+      setRefining(false);
+    }
+  }
+
   async function retune() {
     if (!job?.id) return;
     setMessage(t.applying);
@@ -417,6 +470,9 @@ export default function Home() {
     setScoreZoom(1.08);
     setMeasuresPerLine(4);
     setConfidenceData(null);
+    setRefineMode('balanced');
+    setRefineSource('auto');
+    setAnalysisRevision(0);
     stopTabSynth();
   }
 
@@ -496,7 +552,7 @@ export default function Home() {
         }
       })
       .catch(() => setAvailableParts([]));
-  }, [ready, setupApplied, job?.id]);
+  }, [ready, setupApplied, job?.id, analysisRevision]);
 
   useEffect(() => {
     if (selectedPart === 'bass') {
@@ -522,7 +578,7 @@ export default function Home() {
       .then(r => r.json())
       .then(d => setTuningSuggestions(d.suggestions || []))
       .catch(() => setTuningSuggestions([]));
-  }, [ready, setupApplied, job?.id, instrumentFamily, selectedPart]);
+  }, [ready, setupApplied, job?.id, instrumentFamily, selectedPart, analysisRevision]);
 
   useEffect(() => {
     if (!ready || !job?.id || !selectedPart) return;
@@ -530,7 +586,7 @@ export default function Home() {
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(setConfidenceData)
       .catch(() => setConfidenceData(null));
-  }, [ready, job?.id, selectedPart]);
+  }, [ready, job?.id, selectedPart, analysisRevision]);
 
   useEffect(() => {
     if (audio.current) audio.current.playbackRate = speed;
@@ -903,7 +959,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.19</span>
+          <span className="versionTag">0.20</span>
         </div>
       </header>
 
@@ -1039,6 +1095,35 @@ export default function Home() {
               />
               <div className="microMeta">{t.strength} {rankerStrength.toFixed(2)} · {rankerStatus?.examples || 0} {t.corrections}</div>
             </div>}</>}
+
+            {selectedPart.startsWith('guitar') && (
+              <div className="refinePanel">
+                <div className="sectionLabel">{t.refineTitle}</div>
+                <p className="microCopy">{t.refineHelp}</p>
+                <div className="refineGrid">
+                  <div className="controlGroup">
+                    <label>{t.refineMode}</label>
+                    <select value={refineMode} onChange={e => setRefineMode(e.target.value)}>
+                      <option value="precise">{t.preciseMode}</option>
+                      <option value="balanced">{t.balancedMode}</option>
+                      <option value="sensitive">{t.sensitiveMode}</option>
+                    </select>
+                  </div>
+                  <div className="controlGroup">
+                    <label>{t.refineSource}</label>
+                    <select value={refineSource} onChange={e => setRefineSource(e.target.value)}>
+                      <option value="auto">{t.autoSource}</option>
+                      {job.result?.stems?.guitar && <option value="guitar">guitar · 6-stem</option>}
+                      {job.result?.stems?.guitar_alt && <option value="guitar_alt">guitar_alt · 4-stem other</option>}
+                      {!job.result?.stems?.guitar && job.result?.stems?.other && <option value="other">other · 4-stem</option>}
+                    </select>
+                  </div>
+                </div>
+                <button className="secondaryAction" disabled={refining} onClick={refineTranscription}>
+                  {refining ? t.refining : t.refineAction}
+                </button>
+              </div>
+            )}
 
             {confidenceData && (
               <div className="confidencePanel">
