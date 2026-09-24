@@ -157,3 +157,16 @@ Remaining hardening: grand-staff split between treble/bass clefs, sustain pedal 
 - tests cover spectral classification, pipeline integration and percussion MusicXML
 
 Remaining hardening: replace heuristic classification with a dedicated drum transcription model, velocity estimation, open/closed hi-hat distinction, ride/crash separation, ghost notes, flams, rolls, triplets, tempo-map alignment and benchmark against annotated drum datasets.
+
+
+## Milestone 15 - Guitar Role Intelligence - DONE (v0.15 baseline)
+- infer virtual Rhythm Guitar and Lead Guitar parts from one transcribed guitar stem
+- assign polyphonic onset groups to rhythm guitar
+- assign higher-register, sustained and melodic singleton runs to lead guitar
+- expose role confidence and explanation metadata
+- clearly label role parts as inferred, not source-separated Guitar 1 / Guitar 2
+- reuse guitar tuning intelligence, fingering engine, human corrections and learned ranker
+- keep the original full Guitar part available alongside inferred role views
+- tests cover chord-vs-melody role assignment and empty-input safety
+
+Remaining hardening: true multi-guitar source separation, learned rhythm/lead classifier, phrase-level role tracking, handling harmonized leads, double-tracked guitars and confidence calibration against multitrack datasets.
