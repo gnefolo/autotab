@@ -1,4 +1,4 @@
-# AutoTab MVP v0.11
+# AutoTab MVP v0.12
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -211,3 +211,17 @@ AutoTab now keeps independent pitched-instrument transcriptions after source sep
 - the learned fingering ranker remains guitar-only until a bass-specific model is trained.
 
 The current baseline intentionally does not claim Guitar 1 / Guitar 2 separation: Demucs `other` remains the guitar source until a guitar-specialized separator/classifier is introduced.
+
+
+## Milestone 12 — Six-Stem Guitar Routing
+
+AutoTab now prefers the official Demucs `htdemucs_6s` model, which provides six stems: drums, bass, other, vocals, piano and guitar.
+
+- `guitar.wav` is used directly for guitar transcription when available;
+- `bass.wav` continues to feed the bass transcription path;
+- `piano.wav` is exposed in the mixer but is not sent to the string-fingering engine;
+- if `htdemucs_6s` fails, AutoTab automatically falls back to `htdemucs`;
+- the legacy `other.wav` guitar baseline remains available under that fallback;
+- diagnostics report the preferred and fallback separation models.
+
+This milestone improves source quality without changing the user's flow: upload once, analyze once, then choose the instrument part and setup before generating TAB.
