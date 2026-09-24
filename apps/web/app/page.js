@@ -267,6 +267,7 @@ export default function Home() {
 
   const timer = useRef(null);
   const audio = useRef(null);
+  const fileInput = useRef(null);
   const stemAudios = useRef({});
   const scoreHost = useRef(null);
   const osmd = useRef(null);
@@ -351,12 +352,15 @@ export default function Home() {
     fd.append('tuning', 'guitar_standard');
     try {
       const res = await fetch(`${API}/tracks`, { method: 'POST', body: fd });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}${detail ? ` · ${detail.slice(0, 240)}` : ''}`);
+      }
       const data = await res.json();
       setJob(data);
       poll(data.job_id);
-    } catch {
-      setMessage(t.uploadFail);
+    } catch (error) {
+      setMessage(error?.message ? `${t.uploadFail} · ${error.message}` : t.uploadFail);
     }
   }
 
@@ -905,17 +909,29 @@ export default function Home() {
 
           <div className="uploadZone">
             <input
+              ref={fileInput}
               id="audio-upload"
               className="nativeFileInput"
               type="file"
-              accept="audio/*"
+              accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg"
+              onClick={e => { e.currentTarget.value = ''; }}
               onChange={e => setFile(e.target.files?.[0] || null)}
             />
-            <label className="uploadTarget" htmlFor="audio-upload">
+            <button
+              type="button"
+              className="uploadTarget"
+              onClick={() => fileInput.current?.click()}
+              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+              onDrop={e => {
+                e.preventDefault();
+                const dropped = e.dataTransfer.files?.[0];
+                if (dropped) setFile(dropped);
+              }}
+            >
               <span className="uploadGlyph">＋</span>
               <span className="uploadPrimary">{file ? t.replaceFile : t.chooseFile}</span>
               <span className="uploadFilename">{filename}</span>
-            </label>
+            </button>
 
             <button className="primaryAction" disabled={!file || job?.status === 'processing'} onClick={upload}>
               {job?.status === 'processing' ? `${t.analyzing} · ${job.progress || 0}%` : t.analyze}
