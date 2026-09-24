@@ -22,5 +22,14 @@ jobs:
         run: python scripts/benchmark_accuracy.py benchmarks/example_reference.json benchmarks/example_prediction.json --json
       - name: Compile Python sources
         run: python -m compileall -q packages apps/api/app
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Frontend install
+        working-directory: apps/web
+        run: npm install
+      - name: Frontend build
+        working-directory: apps/web
+        run: npm run build
       - name: Launcher syntax
         run: bash -n start-autotab.sh
