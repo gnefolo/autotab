@@ -376,3 +376,7 @@ input,select{border-radius:0}
 .refinePanel{border:1px solid var(--border);background:var(--surface-1);padding:12px;margin:14px 0}
 .refineGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
 @media(max-width:760px){.refineGrid{grid-template-columns:1fr}}
+
+.weakWindowRow{display:flex;gap:5px;align-items:center}
+.weakWindowRow button:first-child{flex:1;text-align:left}
+.weakWindowRow button:last-child{white-space:nowrap}
