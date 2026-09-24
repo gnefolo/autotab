@@ -6,7 +6,6 @@ import importlib.util
 import shutil
 import subprocess
 import sys
-import sys
 import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -47,7 +46,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.9.0")
+app = FastAPI(title="AutoTab API", version="0.10.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -127,7 +126,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.9.0"}
+    return {"status": "ok", "version": "0.10.0"}
 
 
 @app.get("/diagnostics/ml")
