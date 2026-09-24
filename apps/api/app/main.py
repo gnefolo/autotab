@@ -43,13 +43,18 @@ from music_engine.tuning_intelligence import suggest_tunings
 from music_engine.accuracy import confidence_summary, evaluate_note_events
 
 from .schemas import NotationRequest, TabNoteOut, TabRequest
+from audio_pipeline.adapters import build_guitar_transcriber
+from audio_pipeline.source_selection import select_guitar_source
+from music_engine.guitar_roles import split_guitar_roles
+from music_engine.riff_consistency import harmonize_repeated_riffs
+
 from .services.jobs import JobService
 
 UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.19.0")
+app = FastAPI(title="AutoTab API", version="0.20.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -81,6 +86,11 @@ class BenchmarkRequest(BaseModel):
     part: str = "guitar"
     onset_tolerance: float = Field(default=0.08, gt=0.0, le=0.5)
     reference: list[BenchmarkNote]
+
+
+class RefineTranscriptionRequest(BaseModel):
+    mode: str = "balanced"
+    source: str = "auto"
 
 
 class CorrectionRequest(RetuneRequest):
@@ -202,7 +212,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.19.0"}
+    return {"status": "ok", "version": "0.20.0"
 
 
 @app.get("/diagnostics/ml")
@@ -365,6 +375,106 @@ def get_job(job_id: str):
         raise HTTPException(status_code=404, detail="job not found")
     return job.__dict__
 
+
+
+
+@app.post("/jobs/{job_id}/retranscribe")
+def retranscribe_guitar(job_id: str, payload: RefineTranscriptionRequest):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+
+    if payload.mode not in {"precise", "balanced", "sensitive"}:
+        raise HTTPException(status_code=422, detail="mode must be precise, balanced or sensitive")
+
+    stems = job.result.get("stems", {})
+    allowed_sources = {"guitar", "guitar_alt", "other"}
+    if payload.source != "auto" and payload.source not in allowed_sources:
+        raise HTTPException(status_code=422, detail="source must be auto, guitar, guitar_alt or other")
+
+    candidate_paths: dict[str, pathlib.Path] = {}
+    if payload.source == "auto":
+        primary = "guitar" if "guitar" in stems else "other" if "other" in stems else None
+        if primary:
+            candidate_paths[primary] = pathlib.Path(stems[primary])
+        if "guitar_alt" in stems:
+            candidate_paths["guitar_alt"] = pathlib.Path(stems["guitar_alt"])
+    else:
+        path = stems.get(payload.source)
+        if path:
+            candidate_paths[payload.source] = pathlib.Path(path)
+
+    if not candidate_paths:
+        raise HTTPException(status_code=422, detail="requested guitar source is not available")
+
+    transcriber = build_guitar_transcriber(payload.mode)
+    candidate_notes = {
+        source: transcriber.transcribe(path)
+        for source, path in candidate_paths.items()
+    }
+    selection = select_guitar_source(candidate_notes)
+    selected_source = selection.selected_source
+    raw_notes = candidate_notes[selected_source]
+    riff_result = harmonize_repeated_riffs(raw_notes)
+    guitar_notes = list(riff_result.events)
+
+    tracks = job.result.setdefault("tracks", {})
+    track = tracks.setdefault("guitar", {})
+    track.update(
+        {
+            "part": "guitar",
+            "kind": "strings",
+            "stem": selected_source,
+            "source_path": str(candidate_paths[selected_source]),
+            "notes": [note.__dict__ for note in guitar_notes],
+            "confidence": confidence_summary(guitar_notes),
+            "transcription_engine": getattr(transcriber, "name", transcriber.__class__.__name__),
+            "source_selection": selection.to_dict(),
+            "riff_consistency": {
+                "correction_count": len(riff_result.corrections),
+                "corrections": [row.__dict__ for row in riff_result.corrections],
+            },
+            "refinement": {
+                "mode": payload.mode,
+                "source": payload.source,
+            },
+        }
+    )
+
+    tracks.pop("guitar_rhythm", None)
+    tracks.pop("guitar_lead", None)
+    role_split = split_guitar_roles(guitar_notes)
+    base_meta = {
+        "kind": "strings",
+        "virtual": True,
+        "stem": selected_source,
+        "source_path": str(candidate_paths[selected_source]),
+        "transcription_engine": track["transcription_engine"],
+    }
+    if len(role_split.rhythm) >= 4:
+        tracks["guitar_rhythm"] = {
+            **base_meta,
+            "part": "guitar_rhythm",
+            "notes": [note.__dict__ for note in role_split.rhythm],
+            "confidence": confidence_summary(role_split.rhythm),
+            "role_confidence": role_split.confidence,
+            "role_explanation": list(role_split.explanation),
+        }
+    if len(role_split.lead) >= 4:
+        tracks["guitar_lead"] = {
+            **base_meta,
+            "part": "guitar_lead",
+            "notes": [note.__dict__ for note in role_split.lead],
+            "confidence": confidence_summary(role_split.lead),
+            "role_confidence": role_split.confidence,
+            "role_explanation": list(role_split.explanation),
+        }
+
+    if job.result.get("selected_part", "guitar").startswith("guitar"):
+        job.result["selected_part"] = "guitar"
+        job.result["notes"] = [note.__dict__ for note in guitar_notes]
+
+    return job.__dict__
 
 
 @app.get("/jobs/{job_id}/confidence")
