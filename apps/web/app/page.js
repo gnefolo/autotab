@@ -524,7 +524,11 @@ export default function Home() {
     viewer.Zoom = scoreZoom;
     clearTimeout(scoreRenderTimer.current);
     scoreRenderTimer.current = setTimeout(() => {
-      viewer.render().catch?.(() => {});
+      try {
+        viewer.render();
+      } catch (error) {
+        setMessage(`Score render error: ${error?.message || error}`);
+      }
     }, 40);
     return () => clearTimeout(scoreRenderTimer.current);
   }, [scoreZoom, ready, setupApplied]);
@@ -546,7 +550,11 @@ export default function Home() {
       osmd.current.EngravingRules.RenderXMeasuresPerLineAkaSystem = adaptiveMeasures;
       clearTimeout(scoreRenderTimer.current);
       scoreRenderTimer.current = setTimeout(() => {
-        osmd.current?.render().catch?.(() => {});
+        try {
+          osmd.current?.render();
+        } catch (error) {
+          setMessage(`Score render error: ${error?.message || error}`);
+        }
       }, 140);
     }
 
