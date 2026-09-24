@@ -45,6 +45,9 @@ const COPY = {
     retuned: 'TAB rigenerata',
     part: 'Parte',
     guitarPart: 'Chitarra',
+    guitarRhythmPart: 'Chitarra ritmica · stimata',
+    guitarLeadPart: 'Chitarra lead · stimata',
+    inferred: 'stimata',
     bassPart: 'Basso',
     pianoPart: 'Piano / Tastiere',
     drumsPart: 'Batteria',
@@ -141,6 +144,9 @@ const COPY = {
     retuned: 'TAB regenerated',
     part: 'Part',
     guitarPart: 'Guitar',
+    guitarRhythmPart: 'Rhythm Guitar · inferred',
+    guitarLeadPart: 'Lead Guitar · inferred',
+    inferred: 'inferred',
     bassPart: 'Bass',
     pianoPart: 'Piano / Keys',
     drumsPart: 'Drums',
@@ -273,6 +279,8 @@ export default function Home() {
 
 
   function partLabel(partId) {
+    if (partId === 'guitar_rhythm') return t.guitarRhythmPart;
+    if (partId === 'guitar_lead') return t.guitarLeadPart;
     if (partId === 'bass') return t.bassPart;
     if (partId === 'piano') return t.pianoPart;
     if (partId === 'drums') return t.drumsPart;
@@ -470,7 +478,7 @@ export default function Home() {
     if (selectedPart === 'bass') {
       setInstrumentFamily('bass');
       if (!tuning.startsWith('bass_')) setTuning('bass_standard_4');
-    } else if (selectedPart === 'guitar') {
+    } else if (selectedPart.startsWith('guitar')) {
       setInstrumentFamily('guitar');
       if (tuning.startsWith('bass_') || tuning === 'piano') setTuning('guitar_standard');
     } else if (selectedPart === 'piano' || selectedPart === 'drums') {
@@ -863,7 +871,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.14</span>
+          <span className="versionTag">0.15</span>
         </div>
       </header>
 
@@ -928,7 +936,7 @@ export default function Home() {
                       onClick={() => setSelectedPart(part.id)}
                     >
                       {partLabel(part.id)}
-                      <small>{part.note_count} {t.notes}</small>
+                      <small>{part.note_count} {part.id === 'drums' ? 'hits' : t.notes}{part.virtual ? ` · ${t.inferred}` : ''}</small>
                     </button>
                   ))}
                 </div>
@@ -970,7 +978,7 @@ export default function Home() {
               </div>
             </div>
 
-            {selectedPart === 'guitar' && <div className="rankerControl">
+            {selectedPart.startsWith('guitar') && <div className="rankerControl">
               <label className="checkRow">
                 <input type="checkbox" checked={useRanker} onChange={e => setUseRanker(e.target.checked)} />
                 <span>{t.useLearned}</span>
