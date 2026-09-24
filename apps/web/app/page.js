@@ -226,6 +226,7 @@ export default function Home() {
   const synthNodes = useRef([]);
   const synthInterval = useRef(null);
   const synthScheduledUntil = useRef(0);
+  const listenModeRef = useRef('song');
 
   const t = COPY[lang];
   const filename = useMemo(() => file?.name || t.noTrack, [file, t.noTrack]);
@@ -334,6 +335,7 @@ export default function Home() {
     setRightOpen(true);
     setScoreView('full');
     setListenMode('song');
+    listenModeRef.current = 'song';
     stopTabSynth();
   }
 
@@ -477,7 +479,7 @@ export default function Home() {
   function scheduleTabWindow() {
     const master = audio.current;
     const notes = job?.result?.tab || [];
-    if (!master || master.paused || listenMode !== 'tab' || !notes.length) return;
+    if (!master || master.paused || listenModeRef.current !== 'tab' || !notes.length) return;
     const ctx = getSynthContext();
     const songNow = master.currentTime;
     const from = Math.max(songNow - 0.02, synthScheduledUntil.current);
@@ -521,6 +523,7 @@ export default function Home() {
   }
 
   function changeListenMode(mode) {
+    listenModeRef.current = mode;
     setListenMode(mode);
     const master = audio.current;
     if (!master) return;
@@ -570,7 +573,7 @@ export default function Home() {
     master.volume = Math.max(0, Math.min(1, mix.original?.volume ?? 1));
 
     if (master.paused) {
-      if (listenMode === 'tab') {
+      if (listenModeRef.current === 'tab') {
         master.muted = true;
         Object.values(stemAudios.current).forEach(a => a?.pause());
         await master.play();
@@ -616,7 +619,7 @@ export default function Home() {
         startTabSynth();
       }
     }
-    if (listenMode === 'song') syncStemTransport(a);
+    if (listenModeRef.current === 'song') syncStemTransport(a);
     setCurrent(a.currentTime);
     syncCursor(a.currentTime);
   }
@@ -628,7 +631,7 @@ export default function Home() {
     setCurrent(next);
     syncCursor(next);
     Object.values(stemAudios.current).forEach(a => { if (a) a.currentTime = next; });
-    if (listenMode === 'tab' && !audio.current.paused) {
+    if (listenModeRef.current === 'tab' && !audio.current.paused) {
       stopTabSynth();
       synthScheduledUntil.current = next;
       startTabSynth();
