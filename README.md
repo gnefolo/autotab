@@ -1,4 +1,4 @@
-# AutoTab MVP v0.15
+# AutoTab MVP v0.16
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -267,3 +267,24 @@ AutoTab now derives two optional virtual guitar views from the same transcribed 
 - role confidence and explanatory metadata are stored with each inferred part.
 
 These are explicitly labeled as inferred parts. They are not claimed to be source-separated Guitar 1 / Guitar 2 audio stems.
+
+
+## Milestone 16 — Accuracy Engine & Benchmark Suite
+
+AutoTab now measures transcription quality before trying to optimize more downstream features.
+
+- note-event precision, recall and F1;
+- configurable onset tolerance;
+- onset and duration MAE in milliseconds;
+- false-positive / false-negative counts;
+- per-part confidence summaries and 2-second weak-section windows;
+- clickable confidence timeline before TAB generation and inside the practice workspace;
+- direct audition of weak sections against the original audio;
+- `GET /jobs/{job_id}/confidence`;
+- `POST /jobs/{job_id}/benchmark`;
+- persisted per-job benchmark results;
+- dependency-free CLI benchmark runner in `scripts/benchmark_accuracy.py`;
+- example ground-truth/prediction fixtures under `benchmarks/`;
+- benchmark smoke-test in CI.
+
+The current metrics establish the Basic Pitch baseline. The next accuracy work should compare guitar-specific AMT models and ensemble strategies against this same benchmark contract rather than choosing models by subjective impression.
