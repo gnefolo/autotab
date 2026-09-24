@@ -130,3 +130,16 @@ Remaining hardening: guitar-specific source separation, Guitar 1 / Guitar 2 iden
 - tests verify direct guitar routing and piano stem availability
 
 Remaining hardening: guitar-specific multi-guitar separation, Guitar 1 / Guitar 2 / lead-rhythm classification, piano score transcription, drum event transcription, and separator benchmarking on real songs.
+
+
+## Milestone 13 - Piano / Keys Score Mode - DONE (v0.13 baseline)
+- transcribe the six-stem Demucs `piano` source with a dedicated Basic Pitch range
+- expose Piano / Keys as a selectable post-analysis part
+- mark piano as a score-only part rather than a string-fingering part
+- generate standard-notation-only MusicXML for piano
+- keep playback, cursor sync, zoom and score workspace available
+- hide tuning, capo, learned ranker and string/fret correction controls for piano
+- keep piano stem in the mixer
+- tests verify piano extraction and MusicXML without TAB staff
+
+Remaining hardening: grand-staff split between treble/bass clefs, sustain pedal inference, hand assignment, voice separation, key-aware spelling, piano-specific quantization and benchmark against dedicated piano transcription models.
