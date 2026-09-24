@@ -26,6 +26,7 @@ from music_engine.engine import (
     get_tuning,
     make_custom_tuning,
     optimize_polyphonic_fingering,
+    optimize_polyphonic_fingering_robust,
     with_capo,
 )
 from music_engine.corrections import (
@@ -349,8 +350,14 @@ def retune_job(job_id: str, payload: RetuneRequest):
         )
         ranker_meta = {"enabled": True, "examples": model.examples, "version": model.version, "strength": payload.ranker_strength}
     else:
-        tab = optimize_polyphonic_fingering(events, tuning, profile=payload.profile)
-        ranker_meta = {"enabled": False, "examples": model.examples if model else 0}
+        tab, robust_diagnostics = optimize_polyphonic_fingering_robust(
+            events, tuning, profile=payload.profile
+        )
+        ranker_meta = {
+            "enabled": False,
+            "examples": model.examples if model else 0,
+            "robust_fingering": robust_diagnostics.__dict__,
+        }
 
     rhythm = job.result.get("rhythm", {})
     cfg, quantized = quantize_tab_notes(
