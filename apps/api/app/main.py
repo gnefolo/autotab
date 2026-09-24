@@ -46,7 +46,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.11.0")
+app = FastAPI(title="AutoTab API", version="0.12.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -140,7 +140,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.11.0"}
+    return {"status": "ok", "version": "0.12.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -151,6 +151,8 @@ def diagnostics_ml():
         "demucs_import": importlib.util.find_spec("demucs") is not None,
         "basic_pitch_import": importlib.util.find_spec("basic_pitch") is not None,
         "ffmpeg": shutil.which("ffmpeg"),
+        "preferred_demucs_model": "htdemucs_6s",
+        "fallback_demucs_model": "htdemucs",
     }
     if details["demucs_import"]:
         try:
