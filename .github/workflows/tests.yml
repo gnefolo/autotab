@@ -20,3 +20,5 @@ jobs:
         run: python -m unittest discover -s packages/audio_pipeline/tests -p 'test_*.py' -v
       - name: Compile Python sources
         run: python -m compileall -q packages apps/api/app
+      - name: Launcher syntax
+        run: bash -n start-autotab.sh

@@ -2,6 +2,56 @@
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
+## One-command local start
+
+### First run
+
+Requirements already installed on your computer:
+
+- Python 3.10+
+- Node.js 18+
+- npm
+- Git
+
+Clone the repository once:
+
+```bash
+git clone https://github.com/gnefolo/autotab.git
+cd autotab
+```
+
+Then start AutoTab:
+
+```bash
+./start-autotab.sh
+```
+
+The launcher:
+
+1. creates `apps/api/.venv` when missing;
+2. installs API dependencies on the first run;
+3. installs frontend packages when `node_modules` is missing;
+4. checks ports 8000 and 3000;
+5. starts FastAPI and Next.js;
+6. opens `http://localhost:3000` automatically when possible;
+7. stops both processes when you press `Ctrl+C`.
+
+For the **full audio-analysis stack** including Basic Pitch + Demucs:
+
+```bash
+./start-autotab.sh --ml
+```
+
+The ML install is intentionally opt-in because PyTorch/Demucs is substantially heavier than the UI/API setup.
+
+Useful options:
+
+```bash
+./start-autotab.sh --no-open
+./start-autotab.sh --ml --no-open
+./start-autotab.sh --help
+```
+
 ## Working vertical slice
 
 1. Upload audio + background-job API
