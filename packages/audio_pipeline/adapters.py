@@ -291,3 +291,52 @@ class GuitarCleanupTranscriber(Transcriber):
             i = j
 
         return sorted(out, key=lambda e: (e.start, e.pitch))
+
+
+def build_guitar_transcriber(mode: str = "balanced") -> Transcriber:
+    presets = {
+        "precise": {
+            "thresholds": ((0.48, 0.30), (0.58, 0.36), (0.68, 0.44)),
+            "singleton": 0.94,
+            "min_duration": 0.055,
+            "cleanup_confidence": 0.68,
+        },
+        "balanced": {
+            "thresholds": ((0.38, 0.24), (0.50, 0.30), (0.62, 0.38)),
+            "singleton": 0.90,
+            "min_duration": 0.045,
+            "cleanup_confidence": 0.62,
+        },
+        "sensitive": {
+            "thresholds": ((0.30, 0.20), (0.42, 0.26), (0.54, 0.32)),
+            "singleton": 0.84,
+            "min_duration": 0.035,
+            "cleanup_confidence": 0.55,
+        },
+    }
+    if mode not in presets:
+        raise ValueError(f"Unknown guitar transcription mode: {mode}")
+
+    cfg = presets[mode]
+    passes = tuple(
+        BasicPitchTranscriber(
+            minimum_frequency=70.0,
+            maximum_frequency=1400.0,
+            onset_threshold=onset,
+            frame_threshold=frame,
+        )
+        for onset, frame in cfg["thresholds"]
+    )
+    consensus = ConsensusTranscriber(
+        transcribers=passes,
+        onset_tolerance=0.07,
+        minimum_support=2,
+        high_confidence_singleton=cfg["singleton"],
+        name=f"basic-pitch-3pass-{mode}",
+    )
+    return GuitarCleanupTranscriber(
+        base=consensus,
+        min_duration=cfg["min_duration"],
+        low_confidence_threshold=cfg["cleanup_confidence"],
+        name=f"basic-pitch-3pass-{mode}+cleanup",
+    )
