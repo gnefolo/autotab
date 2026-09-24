@@ -60,6 +60,16 @@ const COPY = {
     train:"Allena / aggiorna ranker",
     corrections:"correzioni",
     notes:"note",
+    step:"PASSO",
+    strength:"Forza",
+    correctionApplying:"Applicazione correzione e riottimizzazione locale…",
+    correctionRejected:"Correzione rifiutata",
+    correctionSaved:"Correzione salvata · fingering locale riottimizzato",
+    correctionsCleared:"Storico correzioni azzerato",
+    profileOriginal:"Original-like",
+    profileEasy:"Facile",
+    profileRhythm:"Ritmica",
+    profileLead:"Solista",
   },
   en: {
     hero:"Upload a song. AutoTab analyzes it first, then lets you decide how you want to play it.",
@@ -103,6 +113,16 @@ const COPY = {
     train:"Train / refresh ranker",
     corrections:"corrections",
     notes:"notes",
+    step:"STEP",
+    strength:"Strength",
+    correctionApplying:"Applying correction and re-optimizing nearby voicings…",
+    correctionRejected:"Correction rejected",
+    correctionSaved:"Correction saved · local fingering re-optimized",
+    correctionsCleared:"Correction history cleared",
+    profileOriginal:"Original-like",
+    profileEasy:"Easy",
+    profileRhythm:"Rhythm",
+    profileLead:"Lead",
   }
 };
 
@@ -167,22 +187,22 @@ export default function Home() {
   }
   async function saveCorrection(){
     if(!job?.id||!selected)return;
-    setMessage('Applying correction and re-optimizing nearby voicings…');
+    setMessage(t.correctionApplying);
     const payload={...setupPayload(),chord_index:selected.chord_index,pitch:selected.pitch,string_index:Number(editString),fret:Number(editFret),neighborhood_radius:Number(radius)};
     const res=await fetch(`${API}/jobs/${job.id}/corrections`,{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
     });
     const data=await res.json();
-    if(!res.ok){setMessage(data.detail||'Correction rejected');return;}
+    if(!res.ok){setMessage(data.detail||t.correctionRejected);return;}
     setJob(data);
     const updated=(data.result?.tab||[]).find(n=>n.chord_index===selected.chord_index&&n.pitch===selected.pitch);
     setSelected(updated||null);
-    setMessage('Correction saved · local fingering re-optimized');
+    setMessage(t.correctionSaved);
   }
   async function clearCorrectionHistory(){
     if(!job?.id)return;
     const res=await fetch(`${API}/jobs/${job.id}/corrections`,{method:'DELETE'});
-    if(res.ok){ setJob(prev=>({...prev,result:{...prev.result,correction_count:0}})); setMessage('Correction history cleared'); }
+    if(res.ok){ setJob(prev=>({...prev,result:{...prev.result,correction_count:0}})); setMessage(t.correctionsCleared); }
   }
 
   useEffect(()=>{ const saved=window.localStorage.getItem('autotab-lang'); if(saved==='it'||saved==='en') setLang(saved); return()=>stopPolling(); },[]);
@@ -259,7 +279,7 @@ export default function Home() {
     </section>
 
     {!ready && <section className="panel uploadPanel">
-      <div className="stepEyebrow">STEP 1</div>
+      <div className="stepEyebrow">{t.step} 1</div>
       <div className="sectionTitle">{t.uploadTitle}</div>
       <div className="label">{t.audio}</div>
       <input className="field" type="file" accept="audio/*" onChange={e=>setFile(e.target.files?.[0]||null)}/>
@@ -272,7 +292,7 @@ export default function Home() {
     </section>}
 
     {ready && !setupApplied && <section className="panel setupPanel">
-      <div className="stepEyebrow">STEP 2</div>
+      <div className="stepEyebrow">{t.step} 2</div>
       <div className="sectionTitle">{t.setupTitle}</div>
       <p className="small setupHelp">{t.setupHelp}</p>
 
@@ -286,10 +306,10 @@ export default function Home() {
         <div>
           <div className="label">{t.profile}</div>
           <select className="field" value={profile} onChange={e=>setProfile(e.target.value)}>
-            <option value="original_like">Original-like</option>
-            <option value="easy">Easy</option>
-            <option value="rhythm">Rhythm</option>
-            <option value="lead">Lead</option>
+            <option value="original_like">{t.profileOriginal}</option>
+            <option value="easy">{t.profileEasy}</option>
+            <option value="rhythm">{t.profileRhythm}</option>
+            <option value="lead">{t.profileLead}</option>
           </select>
         </div>
         <div>
@@ -306,7 +326,7 @@ export default function Home() {
         <div className="label">{t.learned}</div>
         <label className="small"><input type="checkbox" checked={useRanker} onChange={e=>setUseRanker(e.target.checked)}/> {t.useLearned}</label>
         <input style={{width:'100%',marginTop:8}} type="range" min="0" max="1.5" step="0.05" value={rankerStrength} onChange={e=>setRankerStrength(Number(e.target.value))}/>
-        <div className="small">Strength {rankerStrength.toFixed(2)} · {rankerStatus?.examples||0} {t.corrections}</div>
+        <div className="small">{t.strength} {rankerStrength.toFixed(2)} · {rankerStatus?.examples||0} {t.corrections}</div>
       </div>
 
       <button className="btn" onClick={retune}>{t.apply}</button>
@@ -315,7 +335,7 @@ export default function Home() {
 
     {ready && setupApplied && <div className="grid">
       <aside className="panel">
-        <div className="stepEyebrow">STEP 2</div>
+        <div className="stepEyebrow">{t.step} 2</div>
         <div className="sectionTitle">{t.setupTitle}</div>
 
         <div className="label">{t.tuning}</div>
@@ -353,7 +373,7 @@ export default function Home() {
       </aside>
 
       <section className="panel">
-        <div className="stepEyebrow">STEP 3</div>
+        <div className="stepEyebrow">{t.step} 3</div>
         <div className="sectionTitle">{t.practice}</div>
 
         <audio ref={audio} src={`${API}/jobs/${job.id}/audio`} onTimeUpdate={onTime} onLoadedMetadata={()=>setCurrent(0)} />
