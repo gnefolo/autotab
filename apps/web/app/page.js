@@ -1189,6 +1189,33 @@ export default function Home() {
                 </div>
               </div>
 
+              {confidenceData && (
+                <div className="sidebarSection">
+                  <div className="sectionLabel">{t.confidence}</div>
+                  <div className="confidenceStats compactConfidence">
+                    <div><span>{t.confidenceMean}</span><strong>{Math.round((confidenceData.mean_confidence || 0) * 100)}%</strong></div>
+                    <div><span>{t.weakSections}</span><strong>{confidenceData.weak_windows?.length || 0}</strong></div>
+                  </div>
+                  <div className="confidenceTimeline">
+                    {(confidenceData.windows || []).map((w, i) => (
+                      <button
+                        key={i}
+                        className={`confidenceCell ${w.score < 0.60 ? 'weak' : w.score < 0.78 ? 'medium' : 'strong'}`}
+                        title={`${fmt(w.start)}–${fmt(w.end)} · ${Math.round(w.score * 100)}%`}
+                        onClick={() => seek(w.start)}
+                      />
+                    ))}
+                  </div>
+                  <div className="weakWindowList">
+                    {(confidenceData.weak_windows || []).slice(0, 5).map((w, i) => (
+                      <button key={i} onClick={() => seek(w.start)}>
+                        {fmt(w.start)}–{fmt(w.end)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="sidebarSection">
                 <div className="sectionLabel">{t.detectedChords}</div>
                 <div className="chordList">
