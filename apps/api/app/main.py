@@ -38,6 +38,7 @@ from music_engine.intelligence import analyze_guitar_intelligence
 from music_engine.learned_ranker import LearnedRankerModel, optimize_polyphonic_fingering_learned, train_pairwise_ranker
 from music_engine.rhythm import TimeSignature, quantize_tab_notes
 from music_engine.musicxml import export_musicxml
+from music_engine.tuning_intelligence import suggest_tunings
 
 from .schemas import NotationRequest, TabNoteOut, TabRequest
 from .services.jobs import JobService
@@ -286,6 +287,23 @@ def get_job(job_id: str):
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     return job.__dict__
+
+
+@app.get("/jobs/{job_id}/tuning-suggestions")
+def tuning_suggestions(job_id: str, family: str = "guitar", limit: int = 5):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+    if family not in {"guitar", "bass", "all"}:
+        raise HTTPException(status_code=422, detail="family must be guitar, bass or all")
+    events = [NoteEvent(**note) for note in job.result.get("notes", [])]
+    suggestions = suggest_tunings(events, family=family, limit=limit)
+    return {
+        "job_id": job_id,
+        "family": family,
+        "suggestions": [item.to_dict() for item in suggestions],
+        "disclaimer": "Compatibility is inferred from transcribed pitches and ergonomics; it is not proof of the recorded instrument's original tuning.",
+    }
 
 
 @app.get("/jobs/{job_id}/musicxml")
