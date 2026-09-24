@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import json
 import pathlib
+import importlib.util
+import shutil
+import subprocess
+import sys
 import sys
 import uuid
 
@@ -122,6 +126,41 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 @app.get("/health")
 def health():
     return {"status": "ok", "version": "0.9.0"}
+
+
+@app.get("/diagnostics/ml")
+def diagnostics_ml():
+    details = {
+        "python": sys.version.split()[0],
+        "python_executable": sys.executable,
+        "demucs_import": importlib.util.find_spec("demucs") is not None,
+        "basic_pitch_import": importlib.util.find_spec("basic_pitch") is not None,
+        "ffmpeg": shutil.which("ffmpeg"),
+    }
+    if details["demucs_import"]:
+        try:
+            probe = subprocess.run(
+                [sys.executable, "-m", "demucs", "--help"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            details["demucs_cli_ok"] = probe.returncode == 0
+            if probe.returncode != 0:
+                details["demucs_cli_error"] = (probe.stderr or probe.stdout or "")[-2000:]
+        except Exception as exc:
+            details["demucs_cli_ok"] = False
+            details["demucs_cli_error"] = str(exc)
+    else:
+        details["demucs_cli_ok"] = False
+
+    ready = (
+        details["demucs_import"]
+        and details["basic_pitch_import"]
+        and bool(details["ffmpeg"])
+        and details["demucs_cli_ok"]
+    )
+    return {"ready": ready, **details}
 
 
 @app.get("/tunings")
