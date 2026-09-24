@@ -219,7 +219,7 @@ export default function Home() {
   const [radius, setRadius] = useState(2);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
-  const [scoreView, setScoreView] = useState('full');
+  const [scoreView, setScoreView] = useState('tab');
   const [listenMode, setListenMode] = useState('song');
   const [scoreZoom, setScoreZoom] = useState(1.08);
   const [measuresPerLine, setMeasuresPerLine] = useState(4);
@@ -235,6 +235,9 @@ export default function Home() {
   const synthInterval = useRef(null);
   const synthScheduledUntil = useRef(0);
   const listenModeRef = useRef('song');
+  const scoreRenderTimer = useRef(null);
+  const scoreRenderWidth = useRef(0);
+  const scoreLoadKey = useRef('');
 
   const t = COPY[lang];
   const filename = useMemo(() => file?.name || t.noTrack, [file, t.noTrack]);
@@ -341,7 +344,7 @@ export default function Home() {
     setTuningSuggestions([]);
     setLeftOpen(true);
     setRightOpen(true);
-    setScoreView('full');
+    setScoreView('tab');
     setListenMode('song');
     listenModeRef.current = 'song';
     setScoreZoom(1.08);
@@ -447,70 +450,114 @@ export default function Home() {
   useEffect(() => {
     if (!ready || !setupApplied || !scoreHost.current) return;
     let cancelled = false;
-    let resizeTimer = null;
-    let observer = null;
 
-    async function renderScore() {
+    (async () => {
       const { OpenSheetMusicDisplay } = await import('opensheetmusicdisplay');
       if (cancelled || !scoreHost.current) return;
 
-      scoreHost.current.innerHTML = '';
-      const width = scoreHost.current.clientWidth || 1000;
-      let adaptiveMeasures = width < 820 ? 3 : width < 1180 ? 4 : width < 1500 ? 5 : 6;
-      if (scoreView === 'tab') adaptiveMeasures += 1;
-      adaptiveMeasures = Math.max(3, Math.min(7, adaptiveMeasures));
-      setMeasuresPerLine(adaptiveMeasures);
+      const loadKey = `${job.id}:${scoreView}:${job.result?.musicxml}:${job.result?.musicxml_tab}:${correctionCount}`;
+      let viewer = osmd.current;
 
-      const viewer = new OpenSheetMusicDisplay(scoreHost.current, {
-        autoResize: false,
-        backend: 'svg',
-        drawingParameters: 'compacttight',
-        drawTitle: false,
-      });
+      if (!viewer || scoreLoadKey.current !== loadKey) {
+        scoreHost.current.innerHTML = '';
+        viewer = new OpenSheetMusicDisplay(scoreHost.current, {
+          autoResize: false,
+          backend: 'svg',
+          drawingParameters: 'compacttight',
+          drawTitle: false,
+          followCursor: true,
+        });
+        osmd.current = viewer;
+        scoreLoadKey.current = loadKey;
+        await viewer.load(`${API}/jobs/${job.id}/musicxml?view=${scoreView}&ts=${Date.now()}`);
+      }
 
-      await viewer.load(`${API}/jobs/${job.id}/musicxml?view=${scoreView}&ts=${Date.now()}`);
       if (cancelled) return;
 
+      const width = scoreHost.current.clientWidth || 1000;
+      const adaptiveMeasures = scoreView === 'tab'
+        ? (width < 820 ? 3 : width < 1180 ? 4 : width < 1500 ? 5 : 6)
+        : (width < 820 ? 2 : width < 1180 ? 3 : width < 1500 ? 4 : 5);
+
+      setMeasuresPerLine(adaptiveMeasures);
       viewer.Zoom = scoreZoom;
+
       const rules = viewer.EngravingRules;
-      rules.PageLeftMargin = 1.2;
-      rules.PageRightMargin = 1.2;
-      rules.PageTopMargin = 1.0;
-      rules.PageBottomMargin = 2.5;
+      rules.PageLeftMargin = 0.6;
+      rules.PageRightMargin = 0.6;
+      rules.PageTopMargin = 0.5;
+      rules.PageBottomMargin = 1.2;
       rules.SystemLeftMargin = 0.0;
       rules.SystemRightMargin = 0.0;
-      rules.MinimumDistanceBetweenSystems = scoreView === 'tab' ? 5.0 : 6.2;
-      rules.MinSkyBottomDistBetweenSystems = scoreView === 'tab' ? 3.5 : 4.2;
-      rules.BetweenStaffDistance = scoreView === 'tab' ? 3.2 : 4.2;
-      rules.TabStaffInterlineHeight = scoreView === 'tab' ? 1.24 : 1.16;
-      rules.TabStaffInterlineHeightForBboxes = scoreView === 'tab' ? 1.44 : 1.34;
+      rules.MinimumDistanceBetweenSystems = scoreView === 'tab' ? 6.5 : 7.5;
+      rules.MinSkyBottomDistBetweenSystems = scoreView === 'tab' ? 4.0 : 4.8;
+      rules.BetweenStaffDistance = scoreView === 'tab' ? 3.8 : 5.0;
+      rules.TabStaffInterlineHeight = scoreView === 'tab' ? 1.34 : 1.22;
+      rules.TabStaffInterlineHeightForBboxes = scoreView === 'tab' ? 1.52 : 1.40;
       rules.RenderXMeasuresPerLineAkaSystem = adaptiveMeasures;
       rules.StretchLastSystemLine = false;
-      rules.LastSystemMaxScalingFactor = 1.15;
+      rules.LastSystemMaxScalingFactor = 1.08;
 
       await viewer.render();
+      if (cancelled) return;
+
+      scoreRenderWidth.current = width;
       viewer.cursor.show();
       viewer.cursor.reset();
-      osmd.current = viewer;
       cursorIndex.current = -1;
+    })().catch(e => setMessage(`Score render error: ${e.message}`));
+
+    return () => { cancelled = true; };
+  }, [
+    ready,
+    setupApplied,
+    job?.id,
+    job?.result?.musicxml,
+    job?.result?.musicxml_tab,
+    correctionCount,
+    scoreView,
+  ]);
+
+  useEffect(() => {
+    if (!ready || !setupApplied || !osmd.current || !scoreHost.current) return;
+    const viewer = osmd.current;
+    viewer.Zoom = scoreZoom;
+    clearTimeout(scoreRenderTimer.current);
+    scoreRenderTimer.current = setTimeout(() => {
+      viewer.render().catch?.(() => {});
+    }, 40);
+    return () => clearTimeout(scoreRenderTimer.current);
+  }, [scoreZoom, ready, setupApplied]);
+
+  useEffect(() => {
+    if (!ready || !setupApplied) return;
+
+    function stableReflow() {
+      if (!osmd.current || !scoreHost.current) return;
+      const width = scoreHost.current.clientWidth || 0;
+      if (!width || Math.abs(width - scoreRenderWidth.current) < 24) return;
+
+      scoreRenderWidth.current = width;
+      const adaptiveMeasures = scoreView === 'tab'
+        ? (width < 820 ? 3 : width < 1180 ? 4 : width < 1500 ? 5 : 6)
+        : (width < 820 ? 2 : width < 1180 ? 3 : width < 1500 ? 4 : 5);
+
+      setMeasuresPerLine(adaptiveMeasures);
+      osmd.current.EngravingRules.RenderXMeasuresPerLineAkaSystem = adaptiveMeasures;
+      clearTimeout(scoreRenderTimer.current);
+      scoreRenderTimer.current = setTimeout(() => {
+        osmd.current?.render().catch?.(() => {});
+      }, 140);
     }
 
-    renderScore().catch(e => setMessage(`Score render error: ${e.message}`));
-
-    observer = new ResizeObserver(() => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        renderScore().catch(() => {});
-      }, 180);
-    });
-    observer.observe(scoreHost.current);
-
+    const afterPanelAnimation = setTimeout(stableReflow, 180);
+    window.addEventListener('resize', stableReflow);
     return () => {
-      cancelled = true;
-      clearTimeout(resizeTimer);
-      if (observer) observer.disconnect();
+      clearTimeout(afterPanelAnimation);
+      clearTimeout(scoreRenderTimer.current);
+      window.removeEventListener('resize', stableReflow);
     };
-  }, [ready, setupApplied, job?.id, job?.result?.tuning, job?.result?.musicxml, job?.result?.musicxml_tab, correctionCount, scoreView, scoreZoom]);
+  }, [leftOpen, rightOpen, scoreView, ready, setupApplied]);
 
   function getSynthContext() {
     if (!synthContext.current) {
@@ -661,6 +708,18 @@ export default function Home() {
     for (let i = 0; i < idx; i++) osmd.current.cursor.next();
     osmd.current.cursor.show();
     cursorIndex.current = idx;
+
+    const cursorEl = scoreHost.current?.querySelector('.osmd-cursor');
+    const scroller = scoreHost.current?.closest('.scoreCanvas');
+    if (cursorEl && scroller) {
+      const cursorRect = cursorEl.getBoundingClientRect();
+      const scrollRect = scroller.getBoundingClientRect();
+      const upper = scrollRect.top + 90;
+      const lower = scrollRect.bottom - 120;
+      if (cursorRect.top < upper || cursorRect.bottom > lower) {
+        cursorEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      }
+    }
   }
 
   function onTime() {
@@ -695,7 +754,7 @@ export default function Home() {
   }
 
   function fitScore() {
-    setScoreZoom(scoreView === 'tab' ? 1.12 : 1.06);
+    setScoreZoom(scoreView === 'tab' ? 1.16 : 1.08);
   }
 
   const statusLabel = job?.status === 'failed'
@@ -953,8 +1012,8 @@ export default function Home() {
                 </button>
 
                 <div className="viewToggle">
-                  <button className={scoreView === 'full' ? 'active' : ''} onClick={() => setScoreView('full')}>{t.fullScore}</button>
                   <button className={scoreView === 'tab' ? 'active' : ''} onClick={() => setScoreView('tab')}>{t.tabOnly}</button>
+                  <button className={scoreView === 'full' ? 'active' : ''} onClick={() => setScoreView('full')}>{t.fullScore}</button>
                 </div>
 
                 <div className="zoomControls">
