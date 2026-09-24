@@ -190,3 +190,22 @@ Remaining hardening: true multi-guitar source separation, learned rhythm/lead cl
 This milestone intentionally measures the current Basic Pitch baseline before replacing or ensembling it.
 
 Remaining hardening: real verified benchmark corpus, guitar-specific AMT adapters, ensemble transcription, repeated-riff consistency, beat/downbeat alignment, calibration of confidence scores, string/fret ground-truth metrics and section-level re-analysis.
+
+
+## Milestone 17 - Guitar AMT Consensus & Cleanup - DONE (v0.17 baseline)
+- run three Basic Pitch passes for guitar with sensitive, balanced and conservative thresholds
+- cluster same-pitch events across runs within a 70 ms onset tolerance
+- keep notes supported by at least two passes
+- retain single-pass events only at very high confidence
+- merge timing/duration using median estimates
+- derive consensus confidence from model agreement + AMT confidence
+- remove short low-confidence micro-notes
+- collapse near-duplicate retriggers
+- cap impossible simultaneous guitar polyphony to six notes
+- expose the active transcription engine in UI/API diagnostics
+- keep bass, piano and drums on their existing dedicated paths
+- tests cover consensus, timing merge, confidence, duplicate suppression and impossible polyphony
+
+This milestone targets precision first: fewer false notes and fewer AMT artifacts on sparse guitar recordings.
+
+Remaining hardening: benchmark consensus against verified ground truth, guitar-specific learned AMT, calibration by playing style, direct single-instrument bypass mode, repeated-riff consensus and section re-analysis.
