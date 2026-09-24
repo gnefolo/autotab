@@ -6,7 +6,7 @@ import threading
 import traceback
 import uuid
 
-from audio_pipeline.adapters import BasicPitchTranscriber, ConsensusTranscriber, DemucsSeparator, PassthroughSeparator
+from audio_pipeline.adapters import BasicPitchTranscriber, ConsensusTranscriber, GuitarCleanupTranscriber, DemucsSeparator, PassthroughSeparator
 from audio_pipeline.pipeline import AudioPipeline
 from audio_pipeline.drums import DrumTranscriber
 
@@ -51,7 +51,7 @@ class JobService:
         try:
             self._set(job_id, status="processing", progress=10, stage="preparing")
             separator = PassthroughSeparator() if dev_passthrough else DemucsSeparator()
-            guitar_transcriber = ConsensusTranscriber(
+            guitar_consensus = ConsensusTranscriber(
                 transcribers=(
                     BasicPitchTranscriber(
                         minimum_frequency=70.0,
@@ -76,6 +76,10 @@ class JobService:
                 minimum_support=2,
                 high_confidence_singleton=0.90,
                 name="basic-pitch-3pass-consensus",
+            )
+            guitar_transcriber = GuitarCleanupTranscriber(
+                base=guitar_consensus,
+                name="basic-pitch-3pass-consensus+cleanup",
             )
             pipeline = AudioPipeline(
                 separator,
