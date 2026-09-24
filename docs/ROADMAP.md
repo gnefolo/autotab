@@ -170,3 +170,23 @@ Remaining hardening: replace heuristic classification with a dedicated drum tran
 - tests cover chord-vs-melody role assignment and empty-input safety
 
 Remaining hardening: true multi-guitar source separation, learned rhythm/lead classifier, phrase-level role tracking, handling harmonized leads, double-tracked guitars and confidence calibration against multitrack datasets.
+
+
+## Milestone 16 - Accuracy Engine & Benchmark Suite - DONE (v0.16 baseline)
+- objective note-event evaluation with precision, recall and F1
+- exact-MIDI pitch matching with configurable onset tolerance
+- onset and duration mean absolute error in milliseconds
+- false-positive and false-negative counts
+- per-part confidence summaries derived from AMT confidence
+- 2-second confidence windows and weak-section detection
+- clickable confidence timeline in setup and practice workspace
+- pre-TAB audition of low-confidence sections against original audio
+- `GET /jobs/{job_id}/confidence` API
+- `POST /jobs/{job_id}/benchmark` API with persisted per-job metrics
+- reusable `scripts/benchmark_accuracy.py` CLI
+- documented JSON ground-truth contract and benchmark fixtures
+- CI smoke-test for the benchmark runner
+
+This milestone intentionally measures the current Basic Pitch baseline before replacing or ensembling it.
+
+Remaining hardening: real verified benchmark corpus, guitar-specific AMT adapters, ensemble transcription, repeated-riff consistency, beat/downbeat alignment, calibration of confidence scores, string/fret ground-truth metrics and section-level re-analysis.
