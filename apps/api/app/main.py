@@ -212,7 +212,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.20.0"
+    return {"status": "ok", "version": "0.20.0"}
 
 
 @app.get("/diagnostics/ml")
