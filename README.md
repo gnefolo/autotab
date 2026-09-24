@@ -1,4 +1,4 @@
-# AutoTab MVP v0.12
+# AutoTab MVP v0.13
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -225,3 +225,17 @@ AutoTab now prefers the official Demucs `htdemucs_6s` model, which provides six 
 - diagnostics report the preferred and fallback separation models.
 
 This milestone improves source quality without changing the user's flow: upload once, analyze once, then choose the instrument part and setup before generating TAB.
+
+
+## Milestone 13 — Piano / Keys Score Mode
+
+AutoTab now treats the six-stem Demucs `piano` source as a score-only instrument part.
+
+- Piano / Keys appears alongside Guitar and Bass after analysis;
+- the piano stem is transcribed with a wider Basic Pitch frequency range;
+- selecting Piano hides string-specific controls such as tuning, capo, fingering profile and correction editor;
+- the generated MusicXML contains standard notation only, with no TAB staff or string/fret technical notation;
+- playback, score cursor, zoom and the existing practice workspace remain available;
+- the piano stem remains independently controllable in the mixer.
+
+This is an initial piano baseline. Grand staff, hand assignment, pedal inference and piano-specific transcription refinement remain future work.
