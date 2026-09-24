@@ -75,6 +75,7 @@ class AudioPipeline:
                 "source_path": str(guitar_stem),
                 "notes": [asdict(n) for n in guitar_notes],
                 "confidence": confidence_summary(guitar_notes),
+                "transcription_engine": getattr(self.transcriber, "name", self.transcriber.__class__.__name__),
             }
 
             role_split = split_guitar_roles(guitar_notes)
