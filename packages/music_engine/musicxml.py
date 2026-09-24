@@ -94,6 +94,7 @@ def export_musicxml(
     tuning: Tuning,
     title: str = "AutoTab Transcription",
     tab_only: bool = False,
+    standard_only: bool = False,
 ) -> str:
     root = ET.Element("score-partwise", version="4.0")
     work = _sub(root, "work"); _sub(work, "work-title", title)
@@ -117,7 +118,10 @@ def export_musicxml(
             _sub(attributes, "divisions", config.divisions)
             key = _sub(attributes, "key"); _sub(key, "fifths", 0)
             time = _sub(attributes, "time"); _sub(time, "beats", config.time_signature.beats); _sub(time, "beat-type", config.time_signature.beat_type)
-            if tab_only:
+            if standard_only:
+                _sub(attributes, "staves", 1)
+                clef1 = _sub(attributes, "clef", number="1"); _sub(clef1, "sign", "G"); _sub(clef1, "line", 2)
+            elif tab_only:
                 _sub(attributes, "staves", 1)
                 clef1 = _sub(attributes, "clef", number="1"); _sub(clef1, "sign", "TAB"); _sub(clef1, "line", 5)
                 _staff_tuning(attributes, tuning, staff_number=1)
@@ -147,7 +151,9 @@ def export_musicxml(
                 cursor = max(cursor, onset + max_duration)
             if cursor < measure_ticks:
                 _write_rest(measure, measure_ticks-cursor, staff, config.divisions)
-        if tab_only:
+        if standard_only:
+            write_staff(1, False)
+        elif tab_only:
             write_staff(1, True)
         else:
             write_staff(1, False)
