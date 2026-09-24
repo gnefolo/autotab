@@ -306,11 +306,15 @@ def tuning_suggestions(job_id: str, family: str = "guitar", limit: int = 5):
 
 
 @app.get("/jobs/{job_id}/musicxml")
-def get_musicxml(job_id: str):
+def get_musicxml(job_id: str, view: str = "full"):
     job = JOBS.get(job_id)
     if job is None or not job.result:
         raise HTTPException(status_code=404, detail="result not ready")
-    path = pathlib.Path(job.result["musicxml"])
+    if view not in {"full", "tab"}:
+        raise HTTPException(status_code=422, detail="view must be full or tab")
+    key = "musicxml_tab" if view == "tab" else "musicxml"
+    source = job.result.get(key) or job.result.get("musicxml")
+    path = pathlib.Path(source)
     if not path.exists():
         raise HTTPException(status_code=404, detail="MusicXML not found")
     return FileResponse(
@@ -386,13 +390,26 @@ def retune_job(job_id: str, payload: RetuneRequest):
         subdivision=rhythm.get("subdivision", 4),
     )
     xml = export_musicxml(quantized, cfg, tuning, title="AutoTab Retuned")
+    tab_xml = export_musicxml(
+        quantized,
+        cfg,
+        tuning,
+        title="AutoTab TAB",
+        tab_only=True,
+    )
     safe_name = payload.tuning if not payload.custom_open_pitches else "custom"
     out = (
         JOBS.root
         / job_id
         / f"score-{safe_name}-capo{payload.capo}-{payload.profile}.musicxml"
     )
+    tab_out = (
+        JOBS.root
+        / job_id
+        / f"score-{safe_name}-capo{payload.capo}-{payload.profile}-tab.musicxml"
+    )
     out.write_text(xml, encoding="utf-8")
+    tab_out.write_text(tab_xml, encoding="utf-8")
 
     job.result.update(
         {
@@ -402,6 +419,7 @@ def retune_job(job_id: str, payload: RetuneRequest):
             "profile": payload.profile,
             "capo": payload.capo,
             "musicxml": str(out),
+            "musicxml_tab": str(tab_out),
             "intelligence": analyze_guitar_intelligence(tab),
             "ranker": ranker_meta,
         }
@@ -511,8 +529,17 @@ def apply_correction(job_id: str, payload: CorrectionRequest):
         subdivision=rhythm.get("subdivision", 4),
     )
     xml = export_musicxml(quantized, cfg, tuning, title="AutoTab Corrected")
+    tab_xml = export_musicxml(
+        quantized,
+        cfg,
+        tuning,
+        title="AutoTab TAB Corrected",
+        tab_only=True,
+    )
     out = JOBS.root / job_id / "score-corrected.musicxml"
+    tab_out = JOBS.root / job_id / "score-corrected-tab.musicxml"
     out.write_text(xml, encoding="utf-8")
+    tab_out.write_text(tab_xml, encoding="utf-8")
 
     record = build_correction_record(
         job_id, target, requested, tuning, payload.profile
@@ -524,6 +551,7 @@ def apply_correction(job_id: str, payload: CorrectionRequest):
             "tab": [note.__dict__ for note in tab],
             "quantized_tab": [note.__dict__ for note in quantized],
             "musicxml": str(out),
+            "musicxml_tab": str(tab_out),
             "profile": payload.profile,
             "capo": payload.capo,
             "intelligence": analyze_guitar_intelligence(tab),
