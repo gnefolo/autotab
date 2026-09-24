@@ -243,3 +243,33 @@ input,select{border-radius:0}
   .transportBar{flex-wrap:wrap}
   .timeline{order:10;flex-basis:100%}
 }
+
+.workspaceShell.leftCollapsed{grid-template-columns:minmax(0,1fr) 300px}
+.workspaceShell.rightCollapsed{grid-template-columns:260px minmax(0,1fr)}
+.workspaceShell.leftCollapsed.rightCollapsed{grid-template-columns:minmax(0,1fr)}
+.scoreToolbar{gap:12px}
+.toolbarIdentity{display:flex;flex-direction:column;min-width:126px}
+.workspaceControls{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-width:0}
+.panelToggle{height:28px;border:1px solid var(--border);background:var(--surface-1);color:var(--muted);font-size:9px;padding:0 9px;cursor:pointer;white-space:nowrap}
+.panelToggle:hover{border-color:var(--border-strong);color:var(--text)}
+.viewToggle,.listenToggle{display:flex;border:1px solid var(--border)}
+.viewToggle button,.listenToggle button{height:28px;border:0;border-right:1px solid var(--border);background:#0f1214;color:var(--soft);font-size:9px;font-weight:850;padding:0 10px;cursor:pointer;white-space:nowrap}
+.viewToggle button:last-child,.listenToggle button:last-child{border-right:0}
+.viewToggle button.active,.listenToggle button.active{background:var(--surface-3);color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
+.listenToggle{flex:0 0 auto}
+.disabledMix{opacity:.35;pointer-events:none;filter:saturate(.4)}
+.scoreCanvas{transition:padding .15s ease}
+.workspaceShell.leftCollapsed .scoreCanvas,
+.workspaceShell.rightCollapsed .scoreCanvas{padding-left:32px;padding-right:32px}
+.workspaceShell.leftCollapsed.rightCollapsed .scoreCanvas{padding-left:46px;padding-right:46px}
+@media(max-width:1100px){
+  .workspaceShell.leftCollapsed{grid-template-columns:minmax(0,1fr) 260px}
+  .workspaceShell.rightCollapsed{grid-template-columns:220px minmax(0,1fr)}
+  .workspaceShell.leftCollapsed.rightCollapsed{grid-template-columns:minmax(0,1fr)}
+  .workspaceControls{order:3;flex-basis:100%}
+  .scoreToolbar{height:auto;min-height:54px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+}
+@media(max-width:860px){
+  .workspaceShell.leftCollapsed,.workspaceShell.rightCollapsed,.workspaceShell.leftCollapsed.rightCollapsed{grid-template-columns:1fr}
+  .panelToggle{display:none}
+}
