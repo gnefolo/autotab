@@ -3,7 +3,7 @@ from collections import defaultdict
 from xml.etree import ElementTree as ET
 
 from .engine import Tuning
-from .rhythm import QuantizedTabNote, RhythmConfig, split_note_at_measures
+from .rhythm import QuantizedTabNote, RhythmConfig, seconds_to_ticks, split_note_at_measures
 
 _PITCH_CLASS = {
     0: ("C", 0), 1: ("C", 1), 2: ("D", 0), 3: ("D", 1),
@@ -159,5 +159,113 @@ def export_musicxml(
             write_staff(1, False)
             backup = _sub(measure, "backup"); _sub(backup, "duration", measure_ticks)
             write_staff(2, True)
+    ET.indent(root, space="  ")
+    return '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + ET.tostring(root, encoding="unicode")
+
+
+_DRUM_DISPLAY = {
+    "kick": ("F", 3, "normal"),
+    "snare": ("C", 5, "normal"),
+    "tom": ("A", 4, "normal"),
+    "hihat": ("G", 5, "x"),
+    "cymbal": ("A", 5, "x"),
+}
+
+
+def export_drum_musicxml(
+    events: list[dict],
+    config: RhythmConfig,
+    title: str = "AutoTab Drums",
+) -> str:
+    root = ET.Element("score-partwise", version="4.0")
+    work = _sub(root, "work")
+    _sub(work, "work-title", title)
+    identification = _sub(root, "identification")
+    encoding = _sub(identification, "encoding")
+    _sub(encoding, "software", "AutoTab")
+
+    part_list = _sub(root, "part-list")
+    score_part = _sub(part_list, "score-part", id="P1")
+    _sub(score_part, "part-name", "Drums")
+
+    used = sorted({int(event.get("midi_note", 38)) for event in events})
+    for midi_note in used:
+        score_inst = _sub(score_part, "score-instrument", id=f"P1-I{midi_note}")
+        _sub(score_inst, "instrument-name", f"GM Drum {midi_note}")
+        midi_inst = _sub(score_part, "midi-instrument", id=f"P1-I{midi_note}")
+        _sub(midi_inst, "midi-channel", 10)
+        _sub(midi_inst, "midi-unpitched", midi_note)
+
+    part = _sub(root, "part", id="P1")
+    measure_ticks = config.measure_ticks
+    grid = max(1, config.grid_ticks)
+
+    quantized: list[tuple[int, dict]] = []
+    for event in events:
+        raw = seconds_to_ticks(float(event.get("start", 0.0)), config)
+        onset = max(0, int(round(raw / grid) * grid))
+        quantized.append((onset, event))
+
+    max_tick = max((tick for tick, _ in quantized), default=0)
+    max_measure = max_tick // measure_ticks
+
+    grouped: dict[int, list[tuple[int, dict]]] = defaultdict(list)
+    for tick, event in quantized:
+        grouped[tick // measure_ticks].append((tick % measure_ticks, event))
+
+    for measure_index in range(max_measure + 1 if events else 1):
+        measure = _sub(part, "measure", number=measure_index + 1)
+        if measure_index == 0:
+            attributes = _sub(measure, "attributes")
+            _sub(attributes, "divisions", config.divisions)
+            time = _sub(attributes, "time")
+            _sub(time, "beats", config.time_signature.beats)
+            _sub(time, "beat-type", config.time_signature.beat_type)
+            clef = _sub(attributes, "clef")
+            _sub(clef, "sign", "percussion")
+            _sub(clef, "line", 2)
+
+            direction = _sub(measure, "direction", placement="above")
+            direction_type = _sub(direction, "direction-type")
+            metronome = _sub(direction_type, "metronome")
+            _sub(metronome, "beat-unit", "quarter")
+            _sub(metronome, "per-minute", config.bpm)
+            _sub(direction, "sound", tempo=config.bpm)
+
+        cursor = 0
+        by_onset: dict[int, list[dict]] = defaultdict(list)
+        for onset, event in grouped.get(measure_index, []):
+            by_onset[onset].append(event)
+
+        for onset in sorted(by_onset):
+            if onset > cursor:
+                _write_rest(measure, onset - cursor, 1, config.divisions)
+                cursor = onset
+
+            for i, event in enumerate(by_onset[onset]):
+                drum = str(event.get("drum", "snare"))
+                step, octave, notehead = _DRUM_DISPLAY.get(drum, _DRUM_DISPLAY["snare"])
+                midi_note = int(event.get("midi_note", 38))
+                note_el = _sub(measure, "note")
+                if i > 0:
+                    _sub(note_el, "chord")
+                unpitched = _sub(note_el, "unpitched")
+                _sub(unpitched, "display-step", step)
+                _sub(unpitched, "display-octave", octave)
+                _sub(note_el, "duration", grid)
+                _sub(note_el, "instrument", id=f"P1-I{midi_note}")
+                _sub(note_el, "voice", 1)
+                typ = _duration_type(grid, config.divisions)
+                if typ:
+                    _sub(note_el, "type", typ)
+                if notehead == "x":
+                    _sub(note_el, "notehead", "x")
+                _sub(note_el, "staff", 1)
+
+            cursor = max(cursor, onset + grid)
+
+        if cursor < measure_ticks:
+            _write_rest(measure, measure_ticks - cursor, 1, config.divisions)
+
     ET.indent(root, space="  ")
     return '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + ET.tostring(root, encoding="unicode")
