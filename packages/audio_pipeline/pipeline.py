@@ -12,6 +12,7 @@ from music_engine.guitar_roles import split_guitar_roles
 from music_engine.riff_consistency import harmonize_repeated_riffs
 from music_engine.accuracy import confidence_summary
 from .adapters import Separator, Transcriber
+from .source_selection import select_guitar_source
 
 
 @dataclass
@@ -68,17 +69,36 @@ class AudioPipeline:
 
         guitar_stem = stems.get(preferred_stem) or stems.get("other")
         if guitar_stem is not None:
-            raw_guitar_notes = self.transcriber.transcribe(guitar_stem)
+            candidate_paths: dict[str, Path] = {
+                "guitar" if preferred_stem in stems else "other": guitar_stem
+            }
+            if stems.get("guitar_alt") is not None:
+                candidate_paths["guitar_alt"] = stems["guitar_alt"]
+
+            candidate_notes: dict[str, list[NoteEvent]] = {}
+            for source_name, source_path in candidate_paths.items():
+                progress(
+                    55 if source_name != "guitar_alt" else 61,
+                    f"transcribing_{source_name}",
+                )
+                candidate_notes[source_name] = self.transcriber.transcribe(source_path)
+
+            source_selection = select_guitar_source(candidate_notes)
+            selected_source = source_selection.selected_source
+            selected_path = candidate_paths[selected_source]
+            raw_guitar_notes = candidate_notes[selected_source]
+
             riff_consistency = harmonize_repeated_riffs(raw_guitar_notes)
             guitar_notes = list(riff_consistency.events)
             tracks["guitar"] = {
                 "part": "guitar",
                 "kind": "strings",
-                "stem": "guitar" if preferred_stem in stems else "other",
-                "source_path": str(guitar_stem),
+                "stem": selected_source,
+                "source_path": str(selected_path),
                 "notes": [asdict(n) for n in guitar_notes],
                 "confidence": confidence_summary(guitar_notes),
                 "transcription_engine": getattr(self.transcriber, "name", self.transcriber.__class__.__name__),
+                "source_selection": source_selection.to_dict(),
                 "riff_consistency": {
                     "correction_count": len(riff_consistency.corrections),
                     "corrections": [asdict(row) for row in riff_consistency.corrections],
