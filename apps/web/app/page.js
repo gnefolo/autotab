@@ -124,6 +124,8 @@ const COPY = {
     noWeakSections: 'Nessuna sezione debole rilevata',
     transcriptionEngine: 'Motore trascrizione',
     riffFixes: 'Correzioni riff',
+    guitarSource: 'Sorgente chitarra',
+    sourceCandidates: 'Candidati sorgente',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -230,6 +232,8 @@ const COPY = {
     noWeakSections: 'No weak sections detected',
     transcriptionEngine: 'Transcription engine',
     riffFixes: 'Riff consistency fixes',
+    guitarSource: 'Guitar source',
+    sourceCandidates: 'Source candidates',
   }
 };
 
@@ -899,7 +903,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.18</span>
+          <span className="versionTag">0.19</span>
         </div>
       </header>
 
@@ -1047,6 +1051,20 @@ export default function Home() {
                   )}
                   {availableParts.find(p => p.id === selectedPart)?.riff_consistency && (
                     <div className="span2"><span>{t.riffFixes}</span><strong>{availableParts.find(p => p.id === selectedPart)?.riff_consistency?.correction_count || 0}</strong></div>
+                  )}
+                  {availableParts.find(p => p.id === selectedPart)?.source_selection && (
+                    <>
+                      <div className="span2">
+                        <span>{t.guitarSource}</span>
+                        <strong className="engineName">{availableParts.find(p => p.id === selectedPart)?.source_selection?.selected_source}</strong>
+                      </div>
+                      <div className="span2 sourceCandidateList">
+                        <span>{t.sourceCandidates}</span>
+                        {(availableParts.find(p => p.id === selectedPart)?.source_selection?.scores || []).map(row => (
+                          <small key={row.source}>{row.source}: {Math.round((row.score || 0) * 100)}%</small>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
                 <p className="microCopy">{t.confidenceHelp}</p>
