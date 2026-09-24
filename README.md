@@ -1,4 +1,4 @@
-# AutoTab MVP v0.10
+# AutoTab MVP v0.11
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -195,3 +195,19 @@ AutoTab now evaluates tuning compatibility after transcription, before the user 
 The intended flow is now:
 
 `Upload & Analyze -> Tuning / Instrument Setup -> Generate TAB -> Practice & Correct`.
+
+
+## Milestone 11 — Multi-Instrument Intelligence
+
+AutoTab now keeps independent pitched-instrument transcriptions after source separation.
+
+- guitar baseline: Demucs `other` -> Basic Pitch guitar range;
+- bass: Demucs `bass` -> Basic Pitch bass range;
+- canonical note events are stored independently in `result.tracks`;
+- the user chooses Guitar or Bass after analysis;
+- tuning suggestions are computed from the selected part;
+- changing part, tuning, profile or capo regenerates TAB without rerunning Demucs or Basic Pitch;
+- correction histories are isolated by instrument part;
+- the learned fingering ranker remains guitar-only until a bass-specific model is trained.
+
+The current baseline intentionally does not claim Guitar 1 / Guitar 2 separation: Demucs `other` remains the guitar source until a guitar-specialized separator/classifier is introduced.
