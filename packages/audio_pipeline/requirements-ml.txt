@@ -1,5 +1,6 @@
 # AutoTab local ML runtime.
-# Basic Pitch 0.4.0 officially supports Apple Silicon on Python 3.10.
-# Do not request the ONNX extra on macOS: Basic Pitch selects CoreML automatically.
+# Basic Pitch 0.4.0 on Apple Silicon is run under Python 3.10.
+# setuptools<81 keeps pkg_resources available for resampy/basic-pitch dependencies.
+setuptools<81
 basic-pitch==0.4.0
 demucs==4.1.0
