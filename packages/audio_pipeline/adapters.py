@@ -79,7 +79,6 @@ class DemucsSeparator(Separator):
                 for p in song_dir.glob("*.wav"):
                     stems[p.stem] = p
             if stems:
-                stems["_autotab_model"] = Path(model)
                 return stems
             failures.append(f"{model}: produced no stems under {song_dir}")
 
