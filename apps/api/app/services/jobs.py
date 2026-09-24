@@ -18,6 +18,7 @@ class Job:
     progress: int = 0
     result: dict | None = None
     error: str | None = None
+    stage: str = "queued"
 
 
 class JobService:
@@ -47,12 +48,20 @@ class JobService:
 
     def _run(self, job_id: str, source: Path, tuning: str, dev_passthrough: bool):
         try:
-            self._set(job_id, status="processing", progress=10)
+            self._set(job_id, status="processing", progress=10, stage="preparing")
             separator = PassthroughSeparator() if dev_passthrough else DemucsSeparator()
             pipeline = AudioPipeline(separator, BasicPitchTranscriber())
-            self._set(job_id, progress=25)
-            result = pipeline.run(source, self.root / job_id, tuning)
-            self._set(job_id, status="completed", progress=100, result=result.__dict__)
+
+            def on_progress(value: int, stage: str):
+                self._set(job_id, progress=value, stage=stage)
+
+            result = pipeline.run(
+                source,
+                self.root / job_id,
+                tuning,
+                progress_callback=on_progress,
+            )
+            self._set(job_id, status="completed", progress=100, stage="completed", result=result.__dict__)
         except Exception as exc:
             self._set(
                 job_id,
