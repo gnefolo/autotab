@@ -8,6 +8,7 @@ import uuid
 
 from audio_pipeline.adapters import BasicPitchTranscriber, DemucsSeparator, PassthroughSeparator
 from audio_pipeline.pipeline import AudioPipeline
+from audio_pipeline.drums import DrumTranscriber
 
 
 @dataclass
@@ -55,6 +56,7 @@ class JobService:
                 BasicPitchTranscriber(minimum_frequency=70.0, maximum_frequency=1400.0),
                 bass_transcriber=BasicPitchTranscriber(minimum_frequency=30.0, maximum_frequency=500.0),
                 piano_transcriber=BasicPitchTranscriber(minimum_frequency=27.5, maximum_frequency=4200.0),
+                drum_transcriber=DrumTranscriber(),
             )
 
             def on_progress(value: int, stage: str):
