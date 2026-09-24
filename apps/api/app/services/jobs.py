@@ -54,6 +54,7 @@ class JobService:
                 separator,
                 BasicPitchTranscriber(minimum_frequency=70.0, maximum_frequency=1400.0),
                 bass_transcriber=BasicPitchTranscriber(minimum_frequency=30.0, maximum_frequency=500.0),
+                piano_transcriber=BasicPitchTranscriber(minimum_frequency=27.5, maximum_frequency=4200.0),
             )
 
             def on_progress(value: int, stage: str):
