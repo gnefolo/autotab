@@ -10,8 +10,15 @@ class NoteEventIn(BaseModel):
     pitch_bends: tuple[float, ...] = ()
 
 
-class TabRequest(BaseModel):
-    tuning: str
+class InstrumentSetup(BaseModel):
+    tuning: str = "guitar_standard"
+    profile: str = "original_like"
+    capo: int = Field(default=0, ge=0, le=12)
+    custom_open_pitches: list[int] | None = None
+    custom_name: str = "Custom tuning"
+
+
+class TabRequest(InstrumentSetup):
     notes: list[NoteEventIn]
 
 

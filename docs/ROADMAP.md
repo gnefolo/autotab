@@ -44,13 +44,15 @@ Remaining production hardening: audio beat/downbeat tracker, tempo maps, tuplets
 - note/string/fret editor
 - instant tuning switch
 
-## Milestone 6 - Guitar intelligence
+## Milestone 7 - Guitar intelligence - DONE (v0.7 baseline)
 - chord naming and inversion detection
 - barre recognition
-- finger-number feasibility
+- first-pass finger assignment
 - style profiles: rhythm / lead / easy / original-like
 - capo support
 - 7/8-string guitar and custom tunings
+
+Remaining hardening: harmonic context/key-aware spelling, richer extensions, finger biomechanics model and learned original-performance ranking.
 
 ## Milestone 7 - Techniques
 - bend from pitch curves

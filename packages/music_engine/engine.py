@@ -9,6 +9,28 @@ class Tuning:
     name: str
     open_pitches: tuple[int, ...]
     max_fret: int = 24
+    capo: int = 0
+
+
+@dataclass(frozen=True)
+class FingeringProfile:
+    name: str
+    fret_span_weight: float = 1.35
+    position_weight: float = 0.09
+    open_string_bonus: float = 0.18
+    string_gap_weight: float = 0.30
+    center_move_weight: float = 1.0
+    string_reuse_bonus: float = 0.16
+    high_fret_open_penalty: float = 2.5
+    max_fret_span: int = 5
+
+
+PROFILES = {
+    "original_like": FingeringProfile("Original-like"),
+    "easy": FingeringProfile("Easy", 1.9, 0.16, 0.45, 0.45, 1.25, 0.22, 4.0, 4),
+    "rhythm": FingeringProfile("Rhythm", 1.55, 0.08, 0.30, 0.22, 1.15, 0.28, 3.0, 5),
+    "lead": FingeringProfile("Lead", 0.95, 0.03, 0.05, 0.18, 0.60, 0.10, 0.8, 6),
+}
 
 
 @dataclass(frozen=True)
@@ -70,6 +92,8 @@ TUNINGS: dict[str, Tuning] = {
     "guitar_drop_d": Tuning("Guitar Drop D", (38, 45, 50, 55, 59, 64)),
     "guitar_drop_c_sharp": Tuning("Guitar Drop C#", (37, 44, 49, 54, 58, 63)),
     "guitar_drop_c": Tuning("Guitar Drop C", (36, 43, 48, 53, 57, 62)),
+    "guitar_standard_7": Tuning("7-string Standard BEADGBE", (35, 40, 45, 50, 55, 59, 64)),
+    "guitar_standard_8": Tuning("8-string Standard F#BEADGBE", (30, 35, 40, 45, 50, 55, 59, 64)),
     "bass_standard_4": Tuning("Bass Standard EADG", (28, 33, 38, 43)),
     "bass_drop_d_4": Tuning("Bass Drop D", (26, 33, 38, 43)),
     "bass_standard_5": Tuning("5-string Bass BEADG", (23, 28, 33, 38, 43)),
@@ -83,10 +107,37 @@ def get_tuning(key: str) -> Tuning:
         raise ValueError(f"Unknown tuning: {key}") from exc
 
 
+def get_profile(key: str) -> FingeringProfile:
+    try:
+        return PROFILES[key]
+    except KeyError as exc:
+        raise ValueError(f"Unknown fingering profile: {key}") from exc
+
+
+def make_custom_tuning(open_pitches: Iterable[int], name: str = "Custom tuning", max_fret: int = 24, capo: int = 0) -> Tuning:
+    pitches = tuple(int(p) for p in open_pitches)
+    if not 4 <= len(pitches) <= 8:
+        raise ValueError("Custom tuning must contain 4 to 8 strings")
+    if any(p < 0 or p > 127 for p in pitches):
+        raise ValueError("Open-string MIDI pitches must be between 0 and 127")
+    if any(b <= a for a, b in zip(pitches, pitches[1:])):
+        raise ValueError("Open-string pitches must be strictly ascending from lowest to highest string")
+    if capo < 0 or capo > 12:
+        raise ValueError("Capo must be between 0 and 12")
+    return Tuning(name, pitches, max_fret=max_fret, capo=capo)
+
+
+def with_capo(tuning: Tuning, capo: int) -> Tuning:
+    if capo < 0 or capo > 12:
+        raise ValueError("Capo must be between 0 and 12")
+    return Tuning(f"{tuning.name} · capo {capo}" if capo else tuning.name, tuning.open_pitches, tuning.max_fret, capo)
+
+
 def possible_positions(pitch: int, tuning: Tuning) -> list[Position]:
     positions: list[Position] = []
-    for string_index, open_pitch in enumerate(tuning.open_pitches):
-        fret = pitch - open_pitch
+    for string_index, base_open_pitch in enumerate(tuning.open_pitches):
+        sounding_open_pitch = base_open_pitch + tuning.capo
+        fret = pitch - sounding_open_pitch
         if 0 <= fret <= tuning.max_fret:
             positions.append(Position(string_index=string_index, fret=fret))
     return positions
@@ -119,27 +170,28 @@ def group_simultaneous_events(events: Iterable[NoteEvent], onset_tolerance: floa
     return result
 
 
-def _voicing_intrinsic_cost(voicing: Voicing) -> float:
+def _voicing_intrinsic_cost(voicing: Voicing, profile: FingeringProfile) -> float:
     positions = voicing.positions
     if not positions:
         return 0.0
     fretted = voicing.fretted_frets
-    cost = 0.0
-    cost += 1.35 * voicing.fret_span
-    if voicing.fret_span > 4:
-        cost += 8.0 + (voicing.fret_span - 4) * 4.0
-    cost += voicing.center_fret * 0.09
-    cost -= 0.18 * sum(1 for p in positions if p.fret == 0)
+    cost = profile.fret_span_weight * voicing.fret_span
+    if voicing.fret_span > profile.max_fret_span:
+        cost += 8.0 + (voicing.fret_span - profile.max_fret_span) * 4.0
+    cost += voicing.center_fret * profile.position_weight
+    cost -= profile.open_string_bonus * sum(1 for p in positions if p.fret == 0)
     strings = sorted(p.string_index for p in positions)
     if len(strings) > 1:
         gaps = [b - a for a, b in zip(strings, strings[1:])]
-        cost += 0.3 * sum(max(0, gap - 1) for gap in gaps)
+        cost += profile.string_gap_weight * sum(max(0, gap - 1) for gap in gaps)
     if any(p.fret == 0 for p in positions) and fretted and max(fretted) >= 9:
-        cost += 2.5
+        cost += profile.high_fret_open_penalty
     return cost
 
 
-def possible_voicings(group: NoteGroup, tuning: Tuning, max_fret_span: int = 5, max_candidates: int = 256) -> list[Voicing]:
+def possible_voicings(group: NoteGroup, tuning: Tuning, max_fret_span: int = 5, max_candidates: int = 256, profile: FingeringProfile | None = None) -> list[Voicing]:
+    profile = profile or PROFILES["original_like"]
+    effective_span = min(max_fret_span, profile.max_fret_span) if max_fret_span else profile.max_fret_span
     if len(group.events) > len(tuning.open_pitches):
         return []
     per_note: list[list[Position]] = []
@@ -154,10 +206,10 @@ def possible_voicings(group: NoteGroup, tuning: Tuning, max_fret_span: int = 5, 
         if len(set(strings)) != len(strings):
             continue
         voicing = Voicing(tuple(combo))
-        if voicing.fret_span > max_fret_span:
+        if voicing.fret_span > effective_span:
             continue
         candidates.append(voicing)
-    candidates.sort(key=_voicing_intrinsic_cost)
+    candidates.sort(key=lambda v: _voicing_intrinsic_cost(v, profile))
     return candidates[:max_candidates]
 
 
@@ -176,43 +228,45 @@ def transition_cost(prev: Optional[Position], cur: Position) -> float:
     return cost
 
 
-def _voicing_transition_cost(prev: Optional[Voicing], cur: Voicing) -> float:
-    cost = _voicing_intrinsic_cost(cur)
+def _voicing_transition_cost(prev: Optional[Voicing], cur: Voicing, profile: FingeringProfile) -> float:
+    cost = _voicing_intrinsic_cost(cur, profile)
     if prev is None:
         return cost
     center_move = abs(cur.center_fret - prev.center_fret)
-    cost += 1.0 * center_move
+    cost += profile.center_move_weight * center_move
     if center_move > 5:
         cost += (center_move - 5) * 1.6
     prev_strings = {p.string_index for p in prev.positions}
     cur_strings = {p.string_index for p in cur.positions}
-    cost -= 0.16 * len(prev_strings & cur_strings)
+    cost -= profile.string_reuse_bonus * len(prev_strings & cur_strings)
     prev_sc = sum(prev_strings) / len(prev_strings)
     cur_sc = sum(cur_strings) / len(cur_strings)
     cost += 0.28 * abs(cur_sc - prev_sc)
     return cost
 
 
-def optimize_polyphonic_fingering(events: Iterable[NoteEvent], tuning: Tuning, onset_tolerance: float = 0.035, max_fret_span: int = 5, max_candidates_per_group: int = 256) -> list[TabNote]:
+def optimize_polyphonic_fingering(events: Iterable[NoteEvent], tuning: Tuning, onset_tolerance: float = 0.035, max_fret_span: int | None = None, max_candidates_per_group: int = 256, profile: str | FingeringProfile = "original_like") -> list[TabNote]:
+    selected_profile = get_profile(profile) if isinstance(profile, str) else profile
     groups = group_simultaneous_events(events, onset_tolerance=onset_tolerance)
     if not groups:
         return []
+    span = max_fret_span if max_fret_span is not None else selected_profile.max_fret_span
     candidates: list[list[Voicing]] = []
     for group in groups:
-        voicings = possible_voicings(group, tuning, max_fret_span=max_fret_span, max_candidates=max_candidates_per_group)
+        voicings = possible_voicings(group, tuning, max_fret_span=span, max_candidates=max_candidates_per_group, profile=selected_profile)
         if not voicings:
             pitches = [e.pitch for e in group.events]
-            raise ValueError(f"No playable voicing for pitches {pitches} in {tuning.name} within fret span {max_fret_span}")
+            raise ValueError(f"No playable voicing for pitches {pitches} in {tuning.name} within fret span {span}")
         candidates.append(voicings)
     dp: list[dict[Voicing, tuple[float, Optional[Voicing]]]] = []
-    dp.append({v: (_voicing_transition_cost(None, v), None) for v in candidates[0]})
+    dp.append({v: (_voicing_transition_cost(None, v, selected_profile), None) for v in candidates[0]})
     for i in range(1, len(groups)):
         layer: dict[Voicing, tuple[float, Optional[Voicing]]] = {}
         for cur in candidates[i]:
             best_cost = float("inf")
             best_prev: Optional[Voicing] = None
             for prev, (prev_cost, _) in dp[i - 1].items():
-                cost = prev_cost + _voicing_transition_cost(prev, cur)
+                cost = prev_cost + _voicing_transition_cost(prev, cur, selected_profile)
                 if cost < best_cost:
                     best_cost = cost
                     best_prev = prev

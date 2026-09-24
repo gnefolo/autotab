@@ -6,13 +6,13 @@ const tunings = [
   ['guitar_eb', 'Eb Standard'], ['guitar_d_standard', 'D Standard'],
   ['guitar_drop_c_sharp', 'Drop C#'], ['guitar_drop_c', 'Drop C'],
   ['bass_standard_4', 'Bass Standard · E A D G'], ['bass_drop_d_4', 'Bass Drop D'],
-  ['bass_standard_5', '5-string Bass · B E A D G'],
+  ['bass_standard_5', '5-string Bass · B E A D G'],\n  ['guitar_standard_7', '7-string Standard · B E A D G B E'], ['guitar_standard_8', '8-string Standard · F# B E A D G B E'],
 ];
 const API = process.env.NEXT_PUBLIC_AUTOTAB_API || 'http://localhost:8000';
 const fmt = s => `${Math.floor((s||0)/60)}:${String(Math.floor((s||0)%60)).padStart(2,'0')}`;
 
 export default function Home() {
-  const [file,setFile]=useState(null), [tuning,setTuning]=useState('guitar_drop_d');
+  const [file,setFile]=useState(null), [tuning,setTuning]=useState('guitar_drop_d');\n  const [profile,setProfile]=useState('original_like'), [capo,setCapo]=useState(0), [custom,setCustom]=useState('');
   const [message,setMessage]=useState(''), [job,setJob]=useState(null), [speed,setSpeed]=useState(1);
   const [loopA,setLoopA]=useState(null), [loopB,setLoopB]=useState(null), [current,setCurrent]=useState(0);
   const [mix,setMix]=useState({original:{volume:1,muted:false}}), [solo,setSolo]=useState(null);
@@ -36,7 +36,7 @@ export default function Home() {
     catch{ setMessage('Upload failed. Start the API on localhost:8000.'); }
   }
   async function retune(){ if(!job?.id)return; setMessage('Rebuilding TAB for new tuning…');
-    const res=await fetch(`${API}/jobs/${job.id}/retune`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tuning})});
+    const res=await fetch(`${API}/jobs/${job.id}/retune`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tuning,profile,capo,custom_open_pitches:custom.trim()?custom.split(',').map(x=>Number(x.trim())):null,custom_name:'Custom tuning'})});
     if(!res.ok){setMessage('Retune failed');return;} const data=await res.json(); setJob(data); setMessage('TAB regenerated without re-analysing audio');
   }
 
@@ -85,17 +85,21 @@ export default function Home() {
   const techniques=ready?(job.result.techniques||[]):[];
 
   return <main className="shell">
-    <div className="topbar"><div className="brand">AUTOTAB</div><div className="badge">MVP 0.6 · TECHNIQUES + MIXER</div></div>
+    <div className="topbar"><div className="brand">AUTOTAB</div><div className="badge">MVP 0.7 · GUITAR INTELLIGENCE</div></div>
     <section className="hero"><h1>Turn audio into something you can actually play.</h1><p>Separate, transcribe, quantize, retune and practise against synchronized score + TAB, with independent stem mixing.</p></section>
     <div className="grid">
       <aside className="panel">
         <div className="sectionTitle">Analyze track</div><div className="label">Audio</div>
         <input className="field" type="file" accept="audio/*" onChange={e=>setFile(e.target.files?.[0]||null)}/><div className="small" style={{marginTop:8}}>{filename}</div>
         <div className="label" style={{marginTop:18}}>Instrument tuning</div><select className="field" value={tuning} onChange={e=>setTuning(e.target.value)}>{tunings.map(([id,l])=><option key={id} value={id}>{l}</option>)}</select>
+        <div className="label" style={{marginTop:14}}>Playing profile</div><select className="field" value={profile} onChange={e=>setProfile(e.target.value)}><option value="original_like">Original-like</option><option value="easy">Easy</option><option value="rhythm">Rhythm</option><option value="lead">Lead</option></select>
+        <div className="row" style={{marginTop:14}}><div><div className="label">Capo</div><input className="field" type="number" min="0" max="12" value={capo} onChange={e=>setCapo(Number(e.target.value))}/></div><div><div className="label">Custom tuning · MIDI</div><input className="field" placeholder="e.g. 38,45,50,55,59,64" value={custom} onChange={e=>setCustom(e.target.value)}/></div></div>
         <button className="btn" disabled={!file} onClick={upload} style={{marginTop:16}}>Analyze track</button>
         {ready&&<button className="btn secondary" onClick={retune} style={{marginTop:8}}>Regenerate TAB in this tuning</button>}
         <div className={`status ${job?.status==='failed'?'error':''}`}>{message}</div>
-        {ready&&<><div className="label" style={{marginTop:22}}>Analysis</div><div className="meta"><span className="pill">{job.result.rhythm.bpm} BPM</span><span className="pill">{job.result.rhythm.beats}/{job.result.rhythm.beat_type}</span><span className="pill">{job.result.tab?.length||0} notes</span><span className="pill">{techniques.length} technique hints</span></div>
+        {ready&&<><div className="label" style={{marginTop:22}}>Analysis</div><div className="meta"><span className="pill">{job.result.rhythm.bpm} BPM</span><span className="pill">{job.result.rhythm.beats}/{job.result.rhythm.beat_type}</span><span className="pill">{job.result.tab?.length||0} notes</span><span className="pill">{techniques.length} technique hints</span><span className="pill">{profile}</span><span className="pill">Capo {capo}</span></div>
+          <div className="label" style={{marginTop:18}}>Detected chords</div><div className="meta">{(job.result.intelligence?.chords||[]).slice(0,12).map(c=><span className="pill" key={c.chord_index}>{c.name}</span>)}</div>
+          <div className="small">{(job.result.intelligence?.barres||[]).length} probable barre shape(s) · {(job.result.intelligence?.fingers||[]).length} finger assignments</div>
           <div className="label" style={{marginTop:18}}>Technique hints</div><div className="techList">{techniques.length?techniques.slice(0,12).map((t,i)=><div className="tech" key={`${t.note_index}-${t.kind}-${i}`}><b>{t.kind.replaceAll('_',' ')}</b><span>{Math.round(t.confidence*100)}%</span></div>):<div className="small">No high-confidence technique hints detected.</div>}</div>
           <div className="small" style={{marginTop:10}}>Technique labels are conservative hints. Bend/vibrato use pitch-curve evidence; legato/slide remain candidates until the dedicated audio classifier is added.</div></>}
       </aside>

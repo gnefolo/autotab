@@ -78,6 +78,8 @@ def _write_rest(parent: ET.Element, duration: int, staff: int, divisions: int) -
 def _staff_tuning(attributes: ET.Element, tuning: Tuning) -> None:
     details = _sub(attributes, "staff-details", number="2")
     _sub(details, "staff-lines", len(tuning.open_pitches))
+    if tuning.capo:
+        _sub(details, "capo", tuning.capo)
     for line, midi in enumerate(reversed(tuning.open_pitches), start=1):
         st = _sub(details, "staff-tuning", line=line)
         step, alter, octave = midi_pitch_components(midi)

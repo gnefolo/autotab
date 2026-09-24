@@ -1,24 +1,27 @@
 from .engine import (
+    FingeringProfile,
     NoteEvent,
+    PROFILES,
     TabNote,
     Tuning,
+    TUNINGS,
+    get_profile,
     get_tuning,
+    make_custom_tuning,
     optimize_fingering,
     optimize_polyphonic_fingering,
+    with_capo,
 )
+from .intelligence import analyze_chord, analyze_guitar_intelligence, analyze_progression, assign_fingers, detect_barres
 from .rhythm import RhythmConfig, TimeSignature, QuantizedTabNote, quantize_tab_notes
 from .musicxml import export_musicxml
 
 __all__ = [
-    "NoteEvent",
-    "TabNote",
-    "Tuning",
-    "get_tuning",
-    "optimize_fingering",
-    "optimize_polyphonic_fingering",
-    "RhythmConfig",
-    "TimeSignature",
-    "QuantizedTabNote",
-    "quantize_tab_notes",
+    "FingeringProfile", "NoteEvent", "PROFILES", "TabNote", "Tuning", "TUNINGS",
+    "get_profile", "get_tuning", "make_custom_tuning", "with_capo",
+    "optimize_fingering", "optimize_polyphonic_fingering",
+    "analyze_chord", "analyze_guitar_intelligence", "analyze_progression",
+    "assign_fingers", "detect_barres",
+    "RhythmConfig", "TimeSignature", "QuantizedTabNote", "quantize_tab_notes",
     "export_musicxml",
 ]
