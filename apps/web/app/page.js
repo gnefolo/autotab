@@ -117,6 +117,11 @@ const COPY = {
     zoom: 'Zoom',
     fit: 'Adatta',
     measuresPerLine: 'Misure/riga',
+    confidence: 'Affidabilità trascrizione',
+    confidenceMean: 'Confidenza media',
+    weakSections: 'Sezioni da verificare',
+    confidenceHelp: 'Questa stima indica dove la trascrizione automatica è più fragile. Clicca una sezione per ascoltarla.',
+    noWeakSections: 'Nessuna sezione debole rilevata',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -216,6 +221,11 @@ const COPY = {
     zoom: 'Zoom',
     fit: 'Fit',
     measuresPerLine: 'Measures/line',
+    confidence: 'Transcription confidence',
+    confidenceMean: 'Mean confidence',
+    weakSections: 'Sections to review',
+    confidenceHelp: 'This estimate highlights where the automatic transcription is less reliable. Click a section to audition it.',
+    noWeakSections: 'No weak sections detected',
   }
 };
 
@@ -253,6 +263,7 @@ export default function Home() {
   const [listenMode, setListenMode] = useState('song');
   const [scoreZoom, setScoreZoom] = useState(1.08);
   const [measuresPerLine, setMeasuresPerLine] = useState(4);
+  const [confidenceData, setConfidenceData] = useState(null);
 
   const timer = useRef(null);
   const audio = useRef(null);
@@ -393,6 +404,7 @@ export default function Home() {
     listenModeRef.current = 'song';
     setScoreZoom(1.08);
     setMeasuresPerLine(4);
+    setConfidenceData(null);
     stopTabSynth();
   }
 
@@ -499,6 +511,14 @@ export default function Home() {
       .then(d => setTuningSuggestions(d.suggestions || []))
       .catch(() => setTuningSuggestions([]));
   }, [ready, setupApplied, job?.id, instrumentFamily, selectedPart]);
+
+  useEffect(() => {
+    if (!ready || !job?.id || !selectedPart) return;
+    fetch(`${API}/jobs/${job.id}/confidence?part=${encodeURIComponent(selectedPart)}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(setConfidenceData)
+      .catch(() => setConfidenceData(null));
+  }, [ready, job?.id, selectedPart]);
 
   useEffect(() => {
     if (audio.current) audio.current.playbackRate = speed;
@@ -871,7 +891,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.15</span>
+          <span className="versionTag">0.16</span>
         </div>
       </header>
 
@@ -994,6 +1014,46 @@ export default function Home() {
               />
               <div className="microMeta">{t.strength} {rankerStrength.toFixed(2)} · {rankerStatus?.examples || 0} {t.corrections}</div>
             </div>}</>}
+
+            {confidenceData && (
+              <div className="confidencePanel">
+                <div className="sectionLabel">{t.confidence}</div>
+                <div className="confidenceStats">
+                  <div><span>{t.confidenceMean}</span><strong>{Math.round((confidenceData.mean_confidence || 0) * 100)}%</strong></div>
+                  <div><span>{t.weakSections}</span><strong>{confidenceData.weak_windows?.length || 0}</strong></div>
+                </div>
+                <p className="microCopy">{t.confidenceHelp}</p>
+                <div className="confidenceTimeline">
+                  {(confidenceData.windows || []).map((w, i) => (
+                    <button
+                      key={i}
+                      className={`confidenceCell ${w.score < 0.60 ? 'weak' : w.score < 0.78 ? 'medium' : 'strong'}`}
+                      title={`${fmt(w.start)}–${fmt(w.end)} · ${Math.round(w.score * 100)}%`}
+                      onClick={() => {
+                        if (audio.current) {
+                          audio.current.currentTime = w.start;
+                          setCurrent(w.start);
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+                {(confidenceData.weak_windows || []).length === 0
+                  ? <div className="microMeta">{t.noWeakSections}</div>
+                  : <div className="weakWindowList">
+                      {(confidenceData.weak_windows || []).slice(0, 6).map((w, i) => (
+                        <button key={i} onClick={() => {
+                          if (audio.current) {
+                            audio.current.currentTime = w.start;
+                            setCurrent(w.start);
+                          }
+                        }}>
+                          {fmt(w.start)}–{fmt(w.end)} · {Math.round(w.score * 100)}%
+                        </button>
+                      ))}
+                    </div>}
+              </div>
+            )}
 
             <button className="primaryAction" onClick={retune}>{selectedPart === 'piano' || selectedPart === 'drums' ? t.generateScore : t.apply}</button>
             {message && <div className="systemMessage">{message}</div>}
