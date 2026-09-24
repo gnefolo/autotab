@@ -1,4 +1,4 @@
-# AutoTab MVP v0.13
+# AutoTab MVP v0.14
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -239,3 +239,18 @@ AutoTab now treats the six-stem Demucs `piano` source as a score-only instrument
 - the piano stem remains independently controllable in the mixer.
 
 This is an initial piano baseline. Grand staff, hand assignment, pedal inference and piano-specific transcription refinement remain future work.
+
+
+## Milestone 14 — Drum Transcription Baseline
+
+AutoTab now converts the separated `drums` stem into structured percussion events.
+
+- onset detection runs directly on the isolated drum stem;
+- spectral-band energy classifies events as kick, snare, hi-hat, tom or cymbal;
+- events are mapped to General MIDI drum notes;
+- Drums appears as a selectable post-analysis part;
+- the generated score uses percussion-clef MusicXML and unpitched notation;
+- quantized proxy events keep the score cursor synchronized with playback;
+- tuning, capo and string-fingering controls are hidden in drum mode.
+
+The current classifier is an explainable deterministic baseline and is designed to be replaced by a dedicated learned drum-transcription model later.
