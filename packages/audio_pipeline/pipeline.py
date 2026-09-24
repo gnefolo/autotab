@@ -9,6 +9,7 @@ from music_engine.rhythm import TimeSignature, quantize_tab_notes
 from music_engine.musicxml import export_musicxml
 from music_engine.techniques import detect_technique_hints
 from music_engine.guitar_roles import split_guitar_roles
+from music_engine.riff_consistency import harmonize_repeated_riffs
 from music_engine.accuracy import confidence_summary
 from .adapters import Separator, Transcriber
 
@@ -67,7 +68,9 @@ class AudioPipeline:
 
         guitar_stem = stems.get(preferred_stem) or stems.get("other")
         if guitar_stem is not None:
-            guitar_notes = self.transcriber.transcribe(guitar_stem)
+            raw_guitar_notes = self.transcriber.transcribe(guitar_stem)
+            riff_consistency = harmonize_repeated_riffs(raw_guitar_notes)
+            guitar_notes = list(riff_consistency.events)
             tracks["guitar"] = {
                 "part": "guitar",
                 "kind": "strings",
@@ -76,6 +79,10 @@ class AudioPipeline:
                 "notes": [asdict(n) for n in guitar_notes],
                 "confidence": confidence_summary(guitar_notes),
                 "transcription_engine": getattr(self.transcriber, "name", self.transcriber.__class__.__name__),
+                "riff_consistency": {
+                    "correction_count": len(riff_consistency.corrections),
+                    "corrections": [asdict(row) for row in riff_consistency.corrections],
+                },
             }
 
             role_split = split_guitar_roles(guitar_notes)
