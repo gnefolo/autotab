@@ -1,4 +1,4 @@
-# AutoTab MVP v0.17
+# AutoTab MVP v0.19
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -304,3 +304,23 @@ The guitar path no longer trusts a single Basic Pitch pass.
 - UI/API diagnostics expose the active transcription engine: `basic-pitch-3pass-consensus+cleanup`.
 
 This baseline prioritizes precision over recall, targeting the false-note problem observed on sparse guitar recordings.
+
+
+## Milestone 18 — Repeated Riff Consistency
+
+AutoTab now compares repeated guitar phrases before fingering/TAB generation.
+
+- short phrases are grouped by rhythm and surrounding pitch context;
+- at least three independent occurrences are required;
+- only low-confidence, small pitch disagreements are corrected;
+- high-confidence or larger musical variations are preserved;
+- diagnostics expose how many riff-consistency corrections were applied.
+
+## Milestone 19 — Dual Guitar Source Selection
+
+For sparse recordings, especially voice + guitar, AutoTab now compares two separation sources:
+
+- `htdemucs_6s:guitar`;
+- `htdemucs:other` exposed internally as `guitar_alt`.
+
+Both candidates are transcribed with the same three-pass guitar consensus engine. AutoTab scores confidence stability, low-confidence ratio, micro-note artifacts, density and completeness, then selects the more stable source before riff cleanup and fingering. The UI shows the chosen source and both candidate scores.
