@@ -934,7 +934,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="rankerControl">
+            {selectedPart === 'guitar' && <div className="rankerControl">
               <label className="checkRow">
                 <input type="checkbox" checked={useRanker} onChange={e => setUseRanker(e.target.checked)} />
                 <span>{t.useLearned}</span>
@@ -949,7 +949,7 @@ export default function Home() {
                 onChange={e => setRankerStrength(Number(e.target.value))}
               />
               <div className="microMeta">{t.strength} {rankerStrength.toFixed(2)} · {rankerStatus?.examples || 0} {t.corrections}</div>
-            </div>
+            </div>}
 
             <button className="primaryAction" onClick={retune}>{t.apply}</button>
             {message && <div className="systemMessage">{message}</div>}
@@ -961,9 +961,9 @@ export default function Home() {
                 <span className="sectionKicker">TUNING INTELLIGENCE</span>
                 <h2>{t.suggestions}</h2>
               </div>
-              <div className="segmented">
-                <button className={instrumentFamily === 'guitar' ? 'active' : ''} onClick={() => setInstrumentFamily('guitar')}>{t.guitar}</button>
-                <button className={instrumentFamily === 'bass' ? 'active' : ''} onClick={() => setInstrumentFamily('bass')}>{t.bass}</button>
+              <div className="partStatus">
+                <span>{t.part}</span>
+                <strong>{selectedPart === 'bass' ? t.bassPart : t.guitarPart}</strong>
               </div>
             </div>
 
