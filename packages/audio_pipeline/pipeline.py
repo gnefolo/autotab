@@ -8,6 +8,7 @@ from music_engine.engine import NoteEvent, TabNote, get_tuning, optimize_polypho
 from music_engine.rhythm import TimeSignature, quantize_tab_notes
 from music_engine.musicxml import export_musicxml
 from music_engine.techniques import detect_technique_hints
+from music_engine.guitar_roles import split_guitar_roles
 from .adapters import Separator, Transcriber
 
 
@@ -73,6 +74,30 @@ class AudioPipeline:
                 "source_path": str(guitar_stem),
                 "notes": [asdict(n) for n in guitar_notes],
             }
+
+            role_split = split_guitar_roles(guitar_notes)
+            if len(role_split.rhythm) >= 4:
+                tracks["guitar_rhythm"] = {
+                    "part": "guitar_rhythm",
+                    "kind": "strings",
+                    "virtual": True,
+                    "stem": "guitar" if preferred_stem in stems else "other",
+                    "source_path": str(guitar_stem),
+                    "notes": [asdict(n) for n in role_split.rhythm],
+                    "role_confidence": role_split.confidence,
+                    "role_explanation": list(role_split.explanation),
+                }
+            if len(role_split.lead) >= 4:
+                tracks["guitar_lead"] = {
+                    "part": "guitar_lead",
+                    "kind": "strings",
+                    "virtual": True,
+                    "stem": "guitar" if preferred_stem in stems else "other",
+                    "source_path": str(guitar_stem),
+                    "notes": [asdict(n) for n in role_split.lead],
+                    "role_confidence": role_split.confidence,
+                    "role_explanation": list(role_split.explanation),
+                }
 
         bass_stem = stems.get("bass")
         if bass_stem is not None:
