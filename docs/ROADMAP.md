@@ -143,3 +143,17 @@ Remaining hardening: guitar-specific multi-guitar separation, Guitar 1 / Guitar 
 - tests verify piano extraction and MusicXML without TAB staff
 
 Remaining hardening: grand-staff split between treble/bass clefs, sustain pedal inference, hand assignment, voice separation, key-aware spelling, piano-specific quantization and benchmark against dedicated piano transcription models.
+
+
+## Milestone 14 - Drum Transcription Baseline - DONE (v0.14 baseline)
+- process the separated Demucs `drums` stem with a deterministic onset detector
+- classify hits into kick, snare, hi-hat, tom and cymbal using spectral-band energy
+- map detected hits to General MIDI drum notes
+- expose Drums as a selectable post-analysis part
+- generate percussion-clef MusicXML with unpitched drum notation
+- keep score cursor synchronization through quantized proxy events
+- hide tuning, capo and string-fingering controls for drums
+- preserve the raw drum stem in the mixer
+- tests cover spectral classification, pipeline integration and percussion MusicXML
+
+Remaining hardening: replace heuristic classification with a dedicated drum transcription model, velocity estimation, open/closed hi-hat distinction, ride/crash separation, ghost notes, flams, rolls, triplets, tempo-map alignment and benchmark against annotated drum datasets.
