@@ -404,7 +404,7 @@ export default function Home() {
 
   async function clearCorrectionHistory() {
     if (!job?.id) return;
-    const res = await fetch(`${API}/jobs/${job.id}/corrections`, { method: 'DELETE' });
+    const res = await fetch(`${API}/jobs/${job.id}/corrections?part=${selectedPart}`, { method: 'DELETE' });
     if (res.ok) {
       setJob(prev => ({ ...prev, result: { ...prev.result, correction_count: 0 } }));
       setMessage(t.correctionsCleared);
