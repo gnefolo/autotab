@@ -38,7 +38,7 @@ from music_engine.corrections import (
 from music_engine.intelligence import analyze_guitar_intelligence
 from music_engine.learned_ranker import LearnedRankerModel, optimize_polyphonic_fingering_learned, train_pairwise_ranker
 from music_engine.rhythm import TimeSignature, quantize_tab_notes
-from music_engine.musicxml import export_musicxml
+from music_engine.musicxml import export_musicxml, export_drum_musicxml
 from music_engine.tuning_intelligence import suggest_tunings
 
 from .schemas import NotationRequest, TabNoteOut, TabRequest
@@ -48,7 +48,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.13.0")
+app = FastAPI(title="AutoTab API", version="0.14.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -88,6 +88,33 @@ def resolve_setup(
     return with_capo(get_tuning(tuning_key), capo)
 
 
+
+
+
+def _drum_proxy(events: list[dict]) -> list[TabNote]:
+    proxy: list[TabNote] = []
+    grouped: list[tuple[float, list[dict]]] = []
+    for event in sorted(events, key=lambda row: float(row.get("start", 0.0))):
+        start = float(event.get("start", 0.0))
+        if not grouped or abs(grouped[-1][0] - start) > 0.035:
+            grouped.append((start, [event]))
+        else:
+            grouped[-1][1].append(event)
+
+    for chord_index, (start, rows) in enumerate(grouped):
+        for row in rows:
+            proxy.append(
+                TabNote(
+                    pitch=int(row.get("midi_note", 38)),
+                    start=start,
+                    duration=0.08,
+                    string_index=0,
+                    fret=0,
+                    confidence=float(row.get("confidence", 0.8)),
+                    chord_index=chord_index,
+                )
+            )
+    return proxy
 
 
 def _score_proxy(events: list[NoteEvent]) -> list[TabNote]:
@@ -161,7 +188,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.13.0"}
+    return {"status": "ok", "version": "0.14.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -341,7 +368,7 @@ def job_parts(job_id: str):
                 "id": key,
                 "kind": value.get("kind", "strings"),
                 "stem": value.get("stem"),
-                "note_count": len(value.get("notes", [])),
+                "note_count": len(value.get("notes", [])) if value.get("kind") != "drums" else len(value.get("events", [])),
             }
             for key, value in tracks.items()
         ],
@@ -355,13 +382,13 @@ def tuning_suggestions(job_id: str, family: str = "guitar", part: str = "guitar"
         raise HTTPException(status_code=404, detail="result not ready")
     if family not in {"guitar", "bass", "all"}:
         raise HTTPException(status_code=422, detail="family must be guitar, bass or all")
-    if part == "piano":
+    if part in {"piano", "drums"}:
         return {
             "job_id": job_id,
             "family": family,
             "part": part,
             "suggestions": [],
-            "disclaimer": "Piano is rendered as standard notation and does not use string tuning compatibility.",
+            "disclaimer": "This part does not use string tuning compatibility.",
         }
     events = _part_events(job, part)
     suggestions = suggest_tunings(events, family=family, limit=limit)
@@ -423,6 +450,42 @@ def retune_job(job_id: str, payload: RetuneRequest):
     job = JOBS.get(job_id)
     if job is None or not job.result:
         raise HTTPException(status_code=404, detail="result not ready")
+
+    if payload.part == "drums":
+        track = job.result.get("tracks", {}).get("drums", {})
+        drum_events = track.get("events", [])
+        proxy = _drum_proxy(drum_events)
+        rhythm = job.result.get("rhythm", {})
+        cfg, quantized = quantize_tab_notes(
+            proxy,
+            bpm=rhythm.get("bpm"),
+            time_signature=TimeSignature(
+                rhythm.get("beats", 4), rhythm.get("beat_type", 4)
+            ),
+            subdivision=rhythm.get("subdivision", 4),
+        )
+        xml = export_drum_musicxml(drum_events, cfg, title="AutoTab Drums")
+        out = JOBS.root / job_id / "score-drums.musicxml"
+        out.write_text(xml, encoding="utf-8")
+        job.result.update(
+            {
+                "selected_part": "drums",
+                "notes": [],
+                "drum_events": drum_events,
+                "tab": [],
+                "quantized_tab": [note.__dict__ for note in quantized],
+                "tuning": "drums",
+                "profile": "percussion",
+                "capo": 0,
+                "musicxml": str(out),
+                "musicxml_tab": str(out),
+                "intelligence": {},
+                "ranker": {"enabled": False, "examples": 0},
+                "techniques": [],
+                "correction_count": 0,
+            }
+        )
+        return job.__dict__
 
     events = _part_events(job, payload.part)
 
