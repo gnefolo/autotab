@@ -88,3 +88,17 @@ MusicXML viewer, synchronized audio cursor, speed controls, A/B loop and instant
 
 ## Milestone 6 — Expressive guitar transcription
 Next: technique detection (bend, slide, hammer-on/pull-off, palm mute), tempo maps and multi-stem practice mixer.
+
+
+## Milestone 10 - Tuning Intelligence & Auto Setup - DONE (v0.10 baseline)
+- post-transcription tuning compatibility ranking
+- guitar/bass family filtering
+- weighted playable-range coverage
+- low-note incompatibility detection
+- ergonomic scoring using minimum fret position and open strings
+- explainable per-tuning diagnostics
+- post-analysis tuning suggestions in Step 2
+- user-controlled selection; no automatic tuning override
+- IT/EN workflow preserved
+
+Remaining hardening: infer likely recorded tuning from pitch-class/fretboard context, detect detuned reference pitch, use chord voicings and spectral/string-resonance evidence, and learn tuning priors from user corrections.
