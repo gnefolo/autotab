@@ -102,3 +102,18 @@ Next: technique detection (bend, slide, hammer-on/pull-off, palm mute), tempo ma
 - IT/EN workflow preserved
 
 Remaining hardening: infer likely recorded tuning from pitch-class/fretboard context, detect detuned reference pitch, use chord voicings and spectral/string-resonance evidence, and learn tuning priors from user corrections.
+
+
+## Milestone 11 - Multi-Instrument Intelligence - DONE (v0.11 baseline)
+- independent post-separation transcription for guitar and bass
+- Demucs `other` routed to guitar baseline and `bass` routed to bass
+- dedicated Basic Pitch frequency ranges for guitar and bass
+- per-job `tracks` map with canonical notes per instrument part
+- `GET /jobs/{job_id}/parts` API
+- part-aware tuning suggestions
+- part-aware retune / TAB regeneration without re-running separation or AMT
+- part-scoped human correction history and corrected score files
+- learned fingering ranker restricted to guitar baseline
+- post-analysis Guitar / Bass selector in IT/EN UI
+
+Remaining hardening: guitar-specific source separation, Guitar 1 / Guitar 2 identification, vocals/instrument classification, drum transcription, per-part tempo/voice handling, per-instrument technique models, and learned part recognition.
