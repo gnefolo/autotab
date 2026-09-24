@@ -35,6 +35,7 @@ class AudioPipeline:
     separator: Separator
     transcriber: Transcriber
     bass_transcriber: Transcriber | None = None
+    piano_transcriber: Transcriber | None = None
 
     def run(
         self,
@@ -66,6 +67,7 @@ class AudioPipeline:
             guitar_notes = self.transcriber.transcribe(guitar_stem)
             tracks["guitar"] = {
                 "part": "guitar",
+                "kind": "strings",
                 "stem": "guitar" if preferred_stem in stems else "other",
                 "source_path": str(guitar_stem),
                 "notes": [asdict(n) for n in guitar_notes],
@@ -78,16 +80,32 @@ class AudioPipeline:
             bass_notes = bass_engine.transcribe(bass_stem)
             tracks["bass"] = {
                 "part": "bass",
+                "kind": "strings",
                 "stem": "bass",
                 "source_path": str(bass_stem),
                 "notes": [asdict(n) for n in bass_notes],
             }
+
+
+        piano_stem = stems.get("piano")
+        if piano_stem is not None and self.piano_transcriber is not None:
+            progress(70, "transcribing_piano")
+            piano_notes = self.piano_transcriber.transcribe(piano_stem)
+            tracks["piano"] = {
+                "part": "piano",
+                "kind": "score",
+                "stem": "piano",
+                "source_path": str(piano_stem),
+                "notes": [asdict(n) for n in piano_notes],
+            }
+
 
         if not tracks:
             fallback_stem = next(iter(stems.values()))
             fallback_notes = self.transcriber.transcribe(fallback_stem)
             tracks["guitar"] = {
                 "part": "guitar",
+                "kind": "strings",
                 "stem": next(iter(stems.keys())),
                 "source_path": str(fallback_stem),
                 "notes": [asdict(n) for n in fallback_notes],
