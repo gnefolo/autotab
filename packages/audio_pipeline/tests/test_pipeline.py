@@ -97,12 +97,15 @@ class PipelineTests(unittest.TestCase):
                 SixStemSeparator(),
                 GuitarTranscriber(),
                 bass_transcriber=BassTranscriber(),
+                piano_transcriber=GuitarTranscriber(),
             )
             result = pipeline.run(source, td / "work", "guitar_standard")
             self.assertEqual(result.tracks["guitar"]["stem"], "guitar")
             self.assertEqual(result.tracks["bass"]["stem"], "bass")
             self.assertIn("piano", result.stems)
-            self.assertNotIn("piano", result.tracks)
+            self.assertIn("piano", result.tracks)
+            self.assertEqual(result.tracks["piano"]["kind"], "score")
+            self.assertEqual(result.tracks["piano"]["stem"], "piano")
 
     def test_multi_instrument_tracks_are_transcribed_independently(self):
         with tempfile.TemporaryDirectory() as td:
