@@ -273,3 +273,18 @@ input,select{border-radius:0}
   .workspaceShell.leftCollapsed,.workspaceShell.rightCollapsed,.workspaceShell.leftCollapsed.rightCollapsed{grid-template-columns:1fr}
   .panelToggle{display:none}
 }
+
+.zoomControls{display:flex;align-items:center;border:1px solid var(--border);height:28px;background:#0f1214}
+.zoomControls button{height:26px;min-width:28px;border:0;border-right:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;padding:0 8px}
+.zoomControls button:hover{background:var(--surface-3);color:var(--text)}
+.zoomControls span{min-width:44px;text-align:center;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+.zoomControls .fitButton{border-left:1px solid var(--border);border-right:0;min-width:46px;color:var(--accent)}
+.scoreCanvas{padding-top:18px}
+.scoreCanvas>div{width:100%;min-width:0;max-width:none}
+.scoreCanvas svg{display:block;width:100%;height:auto;overflow:visible}
+.scoreCanvas .osmdCanvasPage{box-shadow:none!important;margin:0 auto 28px!important}
+.workspaceShell.leftCollapsed.rightCollapsed .scoreCanvas{padding-left:28px;padding-right:28px}
+@media(max-width:860px){
+  .zoomControls{order:4}
+  .scoreMeta{display:none}
+}
