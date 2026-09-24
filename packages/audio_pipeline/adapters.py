@@ -216,3 +216,69 @@ class ConsensusTranscriber(Transcriber):
             )
 
         return sorted(merged, key=lambda event: (event.start, event.pitch))
+
+
+@dataclass
+class GuitarCleanupTranscriber(Transcriber):
+    base: Transcriber
+    min_duration: float = 0.045
+    low_confidence_threshold: float = 0.62
+    duplicate_tolerance: float = 0.055
+    cluster_tolerance: float = 0.035
+    max_polyphony: int = 6
+    name: str = "guitar-consensus-cleanup"
+
+    def transcribe(self, audio_path: Path) -> list[NoteEvent]:
+        events = sorted(self.base.transcribe(audio_path), key=lambda e: (e.start, e.pitch))
+
+        cleaned: list[NoteEvent] = []
+        for event in events:
+            if (
+                event.duration < self.min_duration
+                and event.confidence < self.low_confidence_threshold
+            ):
+                continue
+
+            duplicate_index = None
+            for i in range(len(cleaned) - 1, -1, -1):
+                prev = cleaned[i]
+                if event.start - prev.start > self.duplicate_tolerance:
+                    break
+                if (
+                    prev.pitch == event.pitch
+                    and abs(event.start - prev.start) <= self.duplicate_tolerance
+                ):
+                    duplicate_index = i
+                    break
+
+            if duplicate_index is not None:
+                prev = cleaned[duplicate_index]
+                if event.confidence > prev.confidence:
+                    cleaned[duplicate_index] = event
+                continue
+
+            cleaned.append(event)
+
+        # Guitar cannot physically sound more notes than strings at one instant.
+        # Keep the strongest six when AMT emits an obviously impossible cluster.
+        out: list[NoteEvent] = []
+        i = 0
+        while i < len(cleaned):
+            cluster = [cleaned[i]]
+            j = i + 1
+            while j < len(cleaned) and cleaned[j].start - cleaned[i].start <= self.cluster_tolerance:
+                cluster.append(cleaned[j])
+                j += 1
+
+            if len(cluster) > self.max_polyphony:
+                cluster = sorted(
+                    cluster,
+                    key=lambda e: (e.confidence, e.duration),
+                    reverse=True,
+                )[: self.max_polyphony]
+                cluster.sort(key=lambda e: (e.start, e.pitch))
+
+            out.extend(cluster)
+            i = j
+
+        return sorted(out, key=lambda e: (e.start, e.pitch))
