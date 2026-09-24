@@ -98,14 +98,15 @@ def _part_events(job, part: str) -> list[NoteEvent]:
     return [NoteEvent(**note) for note in job.result.get("notes", [])]
 
 
-def _corrections_path(job_id: str) -> pathlib.Path:
-    path = JOBS.root / job_id / "corrections.jsonl"
+def _corrections_path(job_id: str, part: str = "guitar") -> pathlib.Path:
+    filename = "corrections.jsonl" if part == "guitar" else f"corrections-{part}.jsonl"
+    path = JOBS.root / job_id / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def _read_corrections(job_id: str) -> list[dict]:
-    path = _corrections_path(job_id)
+def _read_corrections(job_id: str, part: str = "guitar") -> list[dict]:
+    path = _corrections_path(job_id, part)
     if not path.exists():
         return []
     rows: list[dict] = []
@@ -115,8 +116,8 @@ def _read_corrections(job_id: str) -> list[dict]:
     return rows
 
 
-def _append_correction(job_id: str, row: dict) -> None:
-    with _corrections_path(job_id).open("a", encoding="utf-8") as fh:
+def _append_correction(job_id: str, row: dict, part: str = "guitar") -> None:
+    with _corrections_path(job_id, part).open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
@@ -462,11 +463,11 @@ def retune_job(job_id: str, payload: RetuneRequest):
 
 
 @app.get("/jobs/{job_id}/corrections")
-def get_corrections(job_id: str):
+def get_corrections(job_id: str, part: str = "guitar"):
     job = JOBS.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
-    return {"job_id": job_id, "corrections": _read_corrections(job_id)}
+    return {"job_id": job_id, "part": part, "corrections": _read_corrections(job_id, part)}
 
 
 @app.post("/jobs/{job_id}/corrections")
@@ -510,7 +511,7 @@ def apply_correction(job_id: str, payload: CorrectionRequest):
         fret=payload.fret,
     )
 
-    history = _read_corrections(job_id)
+    history = _read_corrections(job_id, payload.part)
     anchors: list[FingeringAnchor] = [
         FingeringAnchor(
             chord_index=row["chord_index"],
@@ -583,7 +584,7 @@ def apply_correction(job_id: str, payload: CorrectionRequest):
     record = build_correction_record(
         job_id, target, requested, tuning, payload.profile
     )
-    _append_correction(job_id, record.to_dict())
+    _append_correction(job_id, record.to_dict(), payload.part)
 
     job.result.update(
         {
@@ -596,18 +597,18 @@ def apply_correction(job_id: str, payload: CorrectionRequest):
             "profile": payload.profile,
             "capo": payload.capo,
             "intelligence": analyze_guitar_intelligence(tab),
-            "correction_count": len(_read_corrections(job_id)),
+            "correction_count": len(_read_corrections(job_id, payload.part)),
         }
     )
     return job.__dict__
 
 
 @app.delete("/jobs/{job_id}/corrections")
-def reset_corrections(job_id: str):
+def reset_corrections(job_id: str, part: str = "guitar"):
     job = JOBS.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
-    path = _corrections_path(job_id)
+    path = _corrections_path(job_id, part)
     if path.exists():
         path.unlink()
     if job.result is not None:
