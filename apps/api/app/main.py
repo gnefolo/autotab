@@ -40,6 +40,7 @@ from music_engine.learned_ranker import LearnedRankerModel, optimize_polyphonic_
 from music_engine.rhythm import TimeSignature, quantize_tab_notes
 from music_engine.musicxml import export_musicxml, export_drum_musicxml
 from music_engine.tuning_intelligence import suggest_tunings
+from music_engine.accuracy import confidence_summary, evaluate_note_events
 
 from .schemas import NotationRequest, TabNoteOut, TabRequest
 from .services.jobs import JobService
@@ -48,7 +49,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.15.0")
+app = FastAPI(title="AutoTab API", version="0.16.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -67,6 +68,19 @@ class RetuneRequest(BaseModel):
     custom_name: str = "Custom tuning"
     use_learned_ranker: bool = False
     ranker_strength: float = Field(default=0.55, ge=0.0, le=2.0)
+
+
+class BenchmarkNote(BaseModel):
+    pitch: int = Field(ge=0, le=127)
+    start: float = Field(ge=0)
+    duration: float = Field(gt=0)
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class BenchmarkRequest(BaseModel):
+    part: str = "guitar"
+    onset_tolerance: float = Field(default=0.08, gt=0.0, le=0.5)
+    reference: list[BenchmarkNote]
 
 
 class CorrectionRequest(RetuneRequest):
@@ -188,7 +202,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.15.0"}
+    return {"status": "ok", "version": "0.16.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -350,6 +364,67 @@ def get_job(job_id: str):
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     return job.__dict__
+
+
+
+@app.get("/jobs/{job_id}/confidence")
+def job_confidence(job_id: str, part: str = "guitar"):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+    tracks = job.result.get("tracks", {})
+    track = tracks.get(part)
+    if track is None:
+        raise HTTPException(status_code=404, detail=f"part '{part}' not found")
+    if track.get("kind") == "drums":
+        events = track.get("events", [])
+        if not events:
+            return {"job_id": job_id, "part": part, "note_count": 0, "windows": [], "weak_windows": []}
+        pseudo = [
+            NoteEvent(
+                pitch=int(row.get("midi_note", 38)),
+                start=float(row.get("start", 0.0)),
+                duration=0.08,
+                confidence=float(row.get("confidence", 0.8)),
+            )
+            for row in events
+        ]
+        summary = confidence_summary(pseudo)
+    else:
+        summary = track.get("confidence") or confidence_summary(
+            [NoteEvent(**row) for row in track.get("notes", [])]
+        )
+    return {"job_id": job_id, "part": part, **summary}
+
+
+@app.post("/jobs/{job_id}/benchmark")
+def benchmark_job(job_id: str, payload: BenchmarkRequest):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+    if payload.part == "drums":
+        raise HTTPException(status_code=422, detail="drum benchmark uses a separate event schema")
+    prediction = _part_events(job, payload.part)
+    reference = [
+        NoteEvent(
+            pitch=row.pitch,
+            start=row.start,
+            duration=row.duration,
+            confidence=row.confidence,
+        )
+        for row in payload.reference
+    ]
+    metrics = evaluate_note_events(
+        reference,
+        prediction,
+        onset_tolerance=payload.onset_tolerance,
+    )
+    return {
+        "job_id": job_id,
+        "part": payload.part,
+        "onset_tolerance": payload.onset_tolerance,
+        "metrics": metrics.to_dict(),
+    }
 
 
 @app.get("/jobs/{job_id}/parts")
