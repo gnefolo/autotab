@@ -56,6 +56,19 @@ class BassTranscriber(Transcriber):
         ]
 
 
+
+
+class SixStemSeparator(Separator):
+    def separate(self, audio_path, output_dir):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        stems = {}
+        for name in ("drums", "bass", "other", "vocals", "piano", "guitar"):
+            p = output_dir / f"{name}.wav"
+            p.write_bytes(name.encode())
+            stems[name] = p
+        return stems
+
+
 class PipelineTests(unittest.TestCase):
     def test_end_to_end_contract(self):
         with tempfile.TemporaryDirectory() as td:
@@ -73,6 +86,23 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(result.musicxml, str(td / "work" / "score.musicxml"))
             self.assertIn("guitar", result.tracks)
             self.assertEqual(result.selected_part, "guitar")
+
+
+    def test_six_stem_prefers_real_guitar_and_keeps_piano_in_mixer(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = pathlib.Path(td)
+            source = td / "song.wav"
+            source.write_bytes(b"audio")
+            pipeline = AudioPipeline(
+                SixStemSeparator(),
+                GuitarTranscriber(),
+                bass_transcriber=BassTranscriber(),
+            )
+            result = pipeline.run(source, td / "work", "guitar_standard")
+            self.assertEqual(result.tracks["guitar"]["stem"], "guitar")
+            self.assertEqual(result.tracks["bass"]["stem"], "bass")
+            self.assertIn("piano", result.stems)
+            self.assertNotIn("piano", result.tracks)
 
     def test_multi_instrument_tracks_are_transcribed_independently(self):
         with tempfile.TemporaryDirectory() as td:
