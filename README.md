@@ -1,4 +1,4 @@
-# AutoTab MVP v0.20
+# AutoTab MVP v0.21
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -342,3 +342,18 @@ The user can also choose the guitar source:
 - **other**: legacy four-stem source when no dedicated guitar stem is available.
 
 Refinement updates canonical guitar notes, confidence diagnostics, inferred Rhythm/Lead views, tuning suggestions, source-selection diagnostics and riff-consistency cleanup while preserving the already-computed separation artifacts.
+
+
+## Milestone 21 — Fix This Section
+
+Low-confidence windows are now actionable.
+
+- click a weak section in the confidence map;
+- audition it against the original audio;
+- rerun only that short section with the selected Precise / Balanced / Sensitive profile;
+- optionally force a specific guitar source;
+- replace only events whose onset falls inside the chosen window;
+- keep the rest of the transcription untouched;
+- refresh confidence, riff consistency and inferred Rhythm/Lead views afterwards.
+
+Section refinement is limited to 30 seconds and reuses the already-separated stems, so Demucs is not rerun.
