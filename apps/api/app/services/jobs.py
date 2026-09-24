@@ -6,7 +6,7 @@ import threading
 import traceback
 import uuid
 
-from audio_pipeline.adapters import BasicPitchTranscriber, DemucsSeparator, PassthroughSeparator
+from audio_pipeline.adapters import BasicPitchTranscriber, ConsensusTranscriber, DemucsSeparator, PassthroughSeparator
 from audio_pipeline.pipeline import AudioPipeline
 from audio_pipeline.drums import DrumTranscriber
 
@@ -51,9 +51,35 @@ class JobService:
         try:
             self._set(job_id, status="processing", progress=10, stage="preparing")
             separator = PassthroughSeparator() if dev_passthrough else DemucsSeparator()
+            guitar_transcriber = ConsensusTranscriber(
+                transcribers=(
+                    BasicPitchTranscriber(
+                        minimum_frequency=70.0,
+                        maximum_frequency=1400.0,
+                        onset_threshold=0.38,
+                        frame_threshold=0.24,
+                    ),
+                    BasicPitchTranscriber(
+                        minimum_frequency=70.0,
+                        maximum_frequency=1400.0,
+                        onset_threshold=0.50,
+                        frame_threshold=0.30,
+                    ),
+                    BasicPitchTranscriber(
+                        minimum_frequency=70.0,
+                        maximum_frequency=1400.0,
+                        onset_threshold=0.62,
+                        frame_threshold=0.38,
+                    ),
+                ),
+                onset_tolerance=0.07,
+                minimum_support=2,
+                high_confidence_singleton=0.90,
+                name="basic-pitch-3pass-consensus",
+            )
             pipeline = AudioPipeline(
                 separator,
-                BasicPitchTranscriber(minimum_frequency=70.0, maximum_frequency=1400.0),
+                guitar_transcriber,
                 bass_transcriber=BasicPitchTranscriber(minimum_frequency=30.0, maximum_frequency=500.0),
                 piano_transcriber=BasicPitchTranscriber(minimum_frequency=27.5, maximum_frequency=4200.0),
                 drum_transcriber=DrumTranscriber(),
