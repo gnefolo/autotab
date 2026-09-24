@@ -47,9 +47,12 @@ const COPY = {
     guitarPart: 'Chitarra',
     bassPart: 'Basso',
     pianoPart: 'Piano / Tastiere',
+    drumsPart: 'Batteria',
     generateScore: 'Genera partitura',
     pianoMode: 'Modalità partitura',
     pianoModeHelp: 'Per Piano/Keys AutoTab genera notazione standard dalle note trascritte. Accordatura, capo e fingering non si applicano.',
+    drumsMode: 'Modalità batteria',
+    drumsModeHelp: 'AutoTab rileva kick, snare, hi-hat, tom e cymbal dallo stem batteria e genera una partitura percussiva quantizzata.',
     partHelp: 'Scegli la parte strumentale da trasformare in TAB.',
     suggestions: 'Compatibilità accordatura',
     suggestionsHelp: 'Stima di compatibilità fisica con le note trascritte, non identificazione certa dell’accordatura originale.',
@@ -140,9 +143,12 @@ const COPY = {
     guitarPart: 'Guitar',
     bassPart: 'Bass',
     pianoPart: 'Piano / Keys',
+    drumsPart: 'Drums',
     generateScore: 'Generate score',
     pianoMode: 'Score mode',
     pianoModeHelp: 'For Piano/Keys AutoTab generates standard notation from the transcription. Tuning, capo and string fingering do not apply.',
+    drumsMode: 'Drums mode',
+    drumsModeHelp: 'AutoTab detects kick, snare, hi-hat, tom and cymbal events from the drum stem and generates quantized percussion notation.',
     partHelp: 'Choose the instrument part to turn into TAB.',
     suggestions: 'Tuning compatibility',
     suggestionsHelp: 'Physical compatibility estimate against transcribed notes, not certain identification of the original recorded tuning.',
@@ -269,6 +275,7 @@ export default function Home() {
   function partLabel(partId) {
     if (partId === 'bass') return t.bassPart;
     if (partId === 'piano') return t.pianoPart;
+    if (partId === 'drums') return t.drumsPart;
     return t.guitarPart;
   }
 
@@ -466,7 +473,7 @@ export default function Home() {
     } else if (selectedPart === 'guitar') {
       setInstrumentFamily('guitar');
       if (tuning.startsWith('bass_') || tuning === 'piano') setTuning('guitar_standard');
-    } else if (selectedPart === 'piano') {
+    } else if (selectedPart === 'piano' || selectedPart === 'drums') {
       setScoreView('full');
       setUseRanker(false);
       setRightOpen(false);
@@ -475,7 +482,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!ready || setupApplied) return;
-    if (selectedPart === 'piano') {
+    if (selectedPart === 'piano' || selectedPart === 'drums') {
       setTuningSuggestions([]);
       return;
     }
@@ -856,7 +863,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.13</span>
+          <span className="versionTag">0.14</span>
         </div>
       </header>
 
@@ -929,10 +936,10 @@ export default function Home() {
               </div>
             )}
 
-            {selectedPart === 'piano' ? (
+            {selectedPart === 'piano' || selectedPart === 'drums' ? (
               <div className="pianoModeCard">
-                <div className="sectionLabel">{t.pianoMode}</div>
-                <p className="microCopy">{t.pianoModeHelp}</p>
+                <div className="sectionLabel">{selectedPart === 'drums' ? t.drumsMode : t.pianoMode}</div>
+                <p className="microCopy">{selectedPart === 'drums' ? t.drumsModeHelp : t.pianoModeHelp}</p>
               </div>
             ) : <>
             <div className="controlGroup">
@@ -980,22 +987,22 @@ export default function Home() {
               <div className="microMeta">{t.strength} {rankerStrength.toFixed(2)} · {rankerStatus?.examples || 0} {t.corrections}</div>
             </div>}</>}
 
-            <button className="primaryAction" onClick={retune}>{selectedPart === 'piano' ? t.generateScore : t.apply}</button>
+            <button className="primaryAction" onClick={retune}>{selectedPart === 'piano' || selectedPart === 'drums' ? t.generateScore : t.apply}</button>
             {message && <div className="systemMessage">{message}</div>}
           </aside>
 
-          {selectedPart === 'piano' ? (
+          {selectedPart === 'piano' || selectedPart === 'drums' ? (
             <section className="compatibilityWorkspace pianoWorkspace">
               <div className="workspaceHeader">
                 <div>
-                  <span className="sectionKicker">PIANO / KEYS</span>
-                  <h2>{t.pianoMode}</h2>
+                  <span className="sectionKicker">{selectedPart === 'drums' ? 'DRUMS' : 'PIANO / KEYS'}</span>
+                  <h2>{selectedPart === 'drums' ? t.drumsMode : t.pianoMode}</h2>
                 </div>
-                <div className="partStatus"><span>{t.part}</span><strong>{t.pianoPart}</strong></div>
+                <div className="partStatus"><span>{t.part}</span><strong>{partLabel(selectedPart)}</strong></div>
               </div>
-              <p className="workspaceHint">{t.pianoModeHelp}</p>
+              <p className="workspaceHint">{selectedPart === 'drums' ? t.drumsModeHelp : t.pianoModeHelp}</p>
               <div className="pianoSummary">
-                <span>{availableParts.find(p => p.id === 'piano')?.note_count || 0}</span>
+                <span>{availableParts.find(p => p.id === selectedPart)?.note_count || 0}</span>
                 <small>{t.notes}</small>
               </div>
             </section>
@@ -1070,7 +1077,7 @@ export default function Home() {
                   </select>
                 </div>
               )}
-              {selectedPart !== 'piano' && <>
+              {selectedPart !== 'piano' && selectedPart !== 'drums' && <>
               <div className="controlGroup">
                 <label>{t.tuning}</label>
                 <select value={tuning} onChange={e => setTuning(e.target.value)}>
@@ -1101,14 +1108,14 @@ export default function Home() {
 
               </>}
               <button className="secondaryAction" onClick={retune}>
-                {selectedPart === 'piano' ? t.generateScore : t.regenerate}
+                {selectedPart === 'piano' || selectedPart === 'drums' ? t.generateScore : t.regenerate}
               </button>
 
               <div className="sidebarSection">
                 <div className="sectionLabel">{t.analysis}</div>
                 <div className="statGrid">
                   <div><span>{t.bpm}</span><strong>{job.result.rhythm?.bpm || '—'}</strong></div>
-                  <div><span>{t.notes}</span><strong>{selectedPart === 'piano' ? (job.result.notes?.length || 0) : (job.result.tab?.length || 0)}</strong></div>
+                  <div><span>{t.notes}</span><strong>{selectedPart === 'drums' ? (job.result.drum_events?.length || 0) : selectedPart === 'piano' ? (job.result.notes?.length || 0) : (job.result.tab?.length || 0)}</strong></div>
                   <div><span>{t.filtered}</span><strong>{diagnostics.filtered_out_of_range?.length || 0}</strong></div>
                   <div><span>{t.corrections}</span><strong>{correctionCount}</strong></div>
                 </div>
@@ -1139,7 +1146,7 @@ export default function Home() {
                   {leftOpen ? '◀' : '▶'} {leftOpen ? t.hideSetup : t.showSetup}
                 </button>
 
-                {selectedPart !== 'piano' && <div className="viewToggle">
+                {selectedPart !== 'piano' && selectedPart !== 'drums' && <div className="viewToggle">
                   <button className={scoreView === 'tab' ? 'active' : ''} onClick={() => setScoreView('tab')}>{t.tabOnly}</button>
                   <button className={scoreView === 'full' ? 'active' : ''} onClick={() => setScoreView('full')}>{t.fullScore}</button>
                 </div>}
@@ -1158,9 +1165,9 @@ export default function Home() {
 
               <div className="scoreMeta">
                 <span>{partLabel(selectedPart)}</span>
-                {selectedPart !== 'piano' && <span>{tuning.replaceAll('_', ' ')}</span>}
-                {selectedPart !== 'piano' && <span>{profile}</span>}
-                {selectedPart !== 'piano' && <span>Capo {capo}</span>}
+                {selectedPart !== 'piano' && selectedPart !== 'drums' && <span>{tuning.replaceAll('_', ' ')}</span>}
+                {selectedPart !== 'piano' && selectedPart !== 'drums' && <span>{profile}</span>}
+                {selectedPart !== 'piano' && selectedPart !== 'drums' && <span>Capo {capo}</span>}
                 <span>{measuresPerLine} {t.measuresPerLine}</span>
               </div>
             </div>
@@ -1169,7 +1176,7 @@ export default function Home() {
             </div>
           </section>
 
-          {rightOpen && selectedPart !== 'piano' && <aside className="rightInspector">
+          {rightOpen && selectedPart !== 'piano' && selectedPart !== 'drums' && <aside className="rightInspector">
             <div className="panelHeader">
               <span className="sectionKicker">INSPECTOR</span>
               <strong>{t.inspector}</strong>
