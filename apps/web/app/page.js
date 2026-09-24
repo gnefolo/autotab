@@ -120,7 +120,7 @@ const COPY = {
     confidence: 'Affidabilità trascrizione',
     confidenceMean: 'Confidenza media',
     weakSections: 'Sezioni da verificare',
-    confidenceHelp: 'Questa stima indica dove la trascrizione automatica è più fragile. Clicca una sezione per ascoltarla.',
+    confidenceHelp: 'Questa stima indica dove la trascrizione automatica è più fragile. Clicca una sezione per ascoltarla subito.',
     noWeakSections: 'Nessuna sezione debole rilevata',
   },
   en: {
@@ -224,7 +224,7 @@ const COPY = {
     confidence: 'Transcription confidence',
     confidenceMean: 'Mean confidence',
     weakSections: 'Sections to review',
-    confidenceHelp: 'This estimate highlights where the automatic transcription is less reliable. Click a section to audition it.',
+    confidenceHelp: 'This estimate highlights where the automatic transcription is less reliable. Click a section to audition it immediately.',
     noWeakSections: 'No weak sections detected',
   }
 };
@@ -940,6 +940,7 @@ export default function Home() {
 
       {ready && !setupApplied && (
         <section className="setupScreen">
+          <audio ref={audio} src={`${API}/jobs/${job.id}/audio`} />
           <aside className="setupRail">
             <span className="sectionKicker">02 / {t.settings.toUpperCase()}</span>
             <h1>{t.setup}</h1>
@@ -1033,6 +1034,7 @@ export default function Home() {
                         if (audio.current) {
                           audio.current.currentTime = w.start;
                           setCurrent(w.start);
+                          audio.current.play().catch(() => {});
                         }
                       }}
                     />
