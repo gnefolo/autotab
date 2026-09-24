@@ -75,8 +75,8 @@ def _write_rest(parent: ET.Element, duration: int, staff: int, divisions: int) -
     _sub(el, "staff", staff)
 
 
-def _staff_tuning(attributes: ET.Element, tuning: Tuning) -> None:
-    details = _sub(attributes, "staff-details", number="2")
+def _staff_tuning(attributes: ET.Element, tuning: Tuning, staff_number: int = 2) -> None:
+    details = _sub(attributes, "staff-details", number=str(staff_number))
     _sub(details, "staff-lines", len(tuning.open_pitches))
     if tuning.capo:
         _sub(details, "capo", tuning.capo)
@@ -88,7 +88,13 @@ def _staff_tuning(attributes: ET.Element, tuning: Tuning) -> None:
         _sub(st, "tuning-octave", octave)
 
 
-def export_musicxml(notes: list[QuantizedTabNote], config: RhythmConfig, tuning: Tuning, title: str = "AutoTab Transcription") -> str:
+def export_musicxml(
+    notes: list[QuantizedTabNote],
+    config: RhythmConfig,
+    tuning: Tuning,
+    title: str = "AutoTab Transcription",
+    tab_only: bool = False,
+) -> str:
     root = ET.Element("score-partwise", version="4.0")
     work = _sub(root, "work"); _sub(work, "work-title", title)
     identification = _sub(root, "identification")
@@ -111,10 +117,15 @@ def export_musicxml(notes: list[QuantizedTabNote], config: RhythmConfig, tuning:
             _sub(attributes, "divisions", config.divisions)
             key = _sub(attributes, "key"); _sub(key, "fifths", 0)
             time = _sub(attributes, "time"); _sub(time, "beats", config.time_signature.beats); _sub(time, "beat-type", config.time_signature.beat_type)
-            _sub(attributes, "staves", 2)
-            clef1 = _sub(attributes, "clef", number="1"); _sub(clef1, "sign", "G"); _sub(clef1, "line", 2)
-            clef2 = _sub(attributes, "clef", number="2"); _sub(clef2, "sign", "TAB"); _sub(clef2, "line", 5)
-            _staff_tuning(attributes, tuning)
+            if tab_only:
+                _sub(attributes, "staves", 1)
+                clef1 = _sub(attributes, "clef", number="1"); _sub(clef1, "sign", "TAB"); _sub(clef1, "line", 5)
+                _staff_tuning(attributes, tuning, staff_number=1)
+            else:
+                _sub(attributes, "staves", 2)
+                clef1 = _sub(attributes, "clef", number="1"); _sub(clef1, "sign", "G"); _sub(clef1, "line", 2)
+                clef2 = _sub(attributes, "clef", number="2"); _sub(clef2, "sign", "TAB"); _sub(clef2, "line", 5)
+                _staff_tuning(attributes, tuning, staff_number=2)
             direction = _sub(measure, "direction", placement="above")
             direction_type = _sub(direction, "direction-type")
             metronome = _sub(direction_type, "metronome"); _sub(metronome, "beat-unit", "quarter"); _sub(metronome, "per-minute", config.bpm)
@@ -136,8 +147,11 @@ def export_musicxml(notes: list[QuantizedTabNote], config: RhythmConfig, tuning:
                 cursor = max(cursor, onset + max_duration)
             if cursor < measure_ticks:
                 _write_rest(measure, measure_ticks-cursor, staff, config.divisions)
-        write_staff(1, False)
-        backup = _sub(measure, "backup"); _sub(backup, "duration", measure_ticks)
-        write_staff(2, True)
+        if tab_only:
+            write_staff(1, True)
+        else:
+            write_staff(1, False)
+            backup = _sub(measure, "backup"); _sub(backup, "duration", measure_ticks)
+            write_staff(2, True)
     ET.indent(root, space="  ")
     return '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + ET.tostring(root, encoding="unicode")
