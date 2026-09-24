@@ -47,6 +47,7 @@ from audio_pipeline.adapters import build_guitar_transcriber
 from audio_pipeline.source_selection import select_guitar_source
 from music_engine.guitar_roles import split_guitar_roles
 from music_engine.riff_consistency import harmonize_repeated_riffs
+from music_engine.refinement import replace_events_in_window
 
 from .services.jobs import JobService
 
@@ -54,7 +55,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.20.0")
+app = FastAPI(title="AutoTab API", version="0.21.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -90,6 +91,13 @@ class BenchmarkRequest(BaseModel):
 
 class RefineTranscriptionRequest(BaseModel):
     mode: str = "balanced"
+    source: str = "auto"
+
+
+class RefineSectionRequest(BaseModel):
+    start: float = Field(ge=0.0)
+    end: float = Field(gt=0.0)
+    mode: str = "precise"
     source: str = "auto"
 
 
@@ -212,7 +220,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.20.0"}
+    return {"status": "ok", "version": "0.21.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -376,6 +384,151 @@ def get_job(job_id: str):
     return job.__dict__
 
 
+
+
+
+@app.post("/jobs/{job_id}/retranscribe-section")
+def retranscribe_guitar_section(job_id: str, payload: RefineSectionRequest):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+
+    if payload.end <= payload.start:
+        raise HTTPException(status_code=422, detail="end must be greater than start")
+    if payload.end - payload.start > 30.0:
+        raise HTTPException(status_code=422, detail="section refinement is limited to 30 seconds")
+    if payload.mode not in {"precise", "balanced", "sensitive"}:
+        raise HTTPException(status_code=422, detail="mode must be precise, balanced or sensitive")
+
+    stems = job.result.get("stems", {})
+    track = job.result.get("tracks", {}).get("guitar")
+    if not track:
+        raise HTTPException(status_code=404, detail="guitar track not available")
+
+    selected_source = payload.source
+    if selected_source == "auto":
+        selected_source = (
+            track.get("stem")
+            or (track.get("source_selection") or {}).get("selected_source")
+            or ("guitar" if "guitar" in stems else "other")
+        )
+
+    if selected_source not in {"guitar", "guitar_alt", "other"}:
+        raise HTTPException(status_code=422, detail="invalid guitar source")
+    source_path = stems.get(selected_source)
+    if not source_path:
+        raise HTTPException(status_code=422, detail=f"source '{selected_source}' is not available")
+
+    section_dir = JOBS.root / job_id / "section-refinements"
+    section_dir.mkdir(parents=True, exist_ok=True)
+    section_path = section_dir / f"{payload.start:.3f}-{payload.end:.3f}-{payload.mode}-{uuid.uuid4().hex[:8]}.wav"
+
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-ss", str(payload.start),
+        "-i", str(source_path),
+        "-t", str(payload.end - payload.start),
+        "-ac", "1",
+        "-c:a", "pcm_s16le",
+        str(section_path),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail="ffmpeg is not available") from exc
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"ffmpeg section extraction failed: {(exc.stderr or '')[-1500:]}",
+        ) from exc
+
+    transcriber = build_guitar_transcriber(payload.mode)
+    local_events = transcriber.transcribe(section_path)
+    shifted = [
+        NoteEvent(
+            pitch=event.pitch,
+            start=event.start + payload.start,
+            duration=event.duration,
+            velocity=event.velocity,
+            confidence=event.confidence,
+            pitch_bends=event.pitch_bends,
+        )
+        for event in local_events
+    ]
+
+    current_events = [NoteEvent(**row) for row in track.get("notes", [])]
+    merged = replace_events_in_window(
+        current_events,
+        shifted,
+        payload.start,
+        payload.end,
+    )
+    riff_result = harmonize_repeated_riffs(merged)
+    guitar_notes = list(riff_result.events)
+
+    track.update(
+        {
+            "notes": [note.__dict__ for note in guitar_notes],
+            "confidence": confidence_summary(guitar_notes),
+            "transcription_engine": getattr(transcriber, "name", transcriber.__class__.__name__),
+            "riff_consistency": {
+                "correction_count": len(riff_result.corrections),
+                "corrections": [row.__dict__ for row in riff_result.corrections],
+            },
+        }
+    )
+    history = list(track.get("section_refinements", []))
+    history.append(
+        {
+            "start": payload.start,
+            "end": payload.end,
+            "mode": payload.mode,
+            "source": selected_source,
+            "replacement_note_count": len(shifted),
+        }
+    )
+    track["section_refinements"] = history
+
+    tracks = job.result.setdefault("tracks", {})
+    tracks.pop("guitar_rhythm", None)
+    tracks.pop("guitar_lead", None)
+    role_split = split_guitar_roles(guitar_notes)
+    base_meta = {
+        "kind": "strings",
+        "virtual": True,
+        "stem": selected_source,
+        "source_path": str(source_path),
+        "transcription_engine": track["transcription_engine"],
+    }
+    if len(role_split.rhythm) >= 4:
+        tracks["guitar_rhythm"] = {
+            **base_meta,
+            "part": "guitar_rhythm",
+            "notes": [note.__dict__ for note in role_split.rhythm],
+            "confidence": confidence_summary(role_split.rhythm),
+            "role_confidence": role_split.confidence,
+            "role_explanation": list(role_split.explanation),
+        }
+    if len(role_split.lead) >= 4:
+        tracks["guitar_lead"] = {
+            **base_meta,
+            "part": "guitar_lead",
+            "notes": [note.__dict__ for note in role_split.lead],
+            "confidence": confidence_summary(role_split.lead),
+            "role_confidence": role_split.confidence,
+            "role_explanation": list(role_split.explanation),
+        }
+
+    if job.result.get("selected_part", "guitar").startswith("guitar"):
+        job.result["selected_part"] = "guitar"
+        job.result["notes"] = [note.__dict__ for note in guitar_notes]
+
+    try:
+        section_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    return job.__dict__
 
 
 @app.post("/jobs/{job_id}/retranscribe")
