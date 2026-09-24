@@ -9,6 +9,7 @@ from music_engine.engine import (
     get_tuning,
     group_simultaneous_events,
     optimize_polyphonic_fingering,
+    optimize_polyphonic_fingering_robust,
     possible_voicings,
 )
 
@@ -63,6 +64,19 @@ class PolyphonicEngineTests(unittest.TestCase):
             {(n.string_index, n.fret) for n in drop},
             {(n.string_index, n.fret) for n in standard},
         )
+
+    def test_robust_fingering_filters_note_below_tuning_range(self):
+        tuning = get_tuning("guitar_eb")
+        events = [
+            NoteEvent(37, 0.0, 0.4, confidence=0.4),
+            NoteEvent(53, 0.0, 0.4, confidence=0.9),
+            NoteEvent(56, 0.0, 0.4, confidence=0.9),
+        ]
+        tab, diagnostics = optimize_polyphonic_fingering_robust(events, tuning)
+        self.assertEqual(sorted(n.pitch for n in tab), [53, 56])
+        self.assertEqual(diagnostics.input_notes, 3)
+        self.assertEqual(len(diagnostics.filtered_out_of_range), 1)
+        self.assertEqual(diagnostics.filtered_out_of_range[0][0], 37)
 
     def test_impossible_seven_note_chord_is_rejected_on_six_strings(self):
         tuning = get_tuning("guitar_standard")
