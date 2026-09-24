@@ -21,7 +21,9 @@ from music_engine.engine import (
     PROFILES,
     TUNINGS,
     TabNote,
+    Tuning,
     get_profile,
+    group_simultaneous_events,
     get_tuning,
     make_custom_tuning,
     optimize_polyphonic_fingering,
@@ -46,7 +48,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.12.0")
+app = FastAPI(title="AutoTab API", version="0.13.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -85,6 +87,25 @@ def resolve_setup(
         return make_custom_tuning(custom_open_pitches, name=custom_name, capo=capo)
     return with_capo(get_tuning(tuning_key), capo)
 
+
+
+
+def _score_proxy(events: list[NoteEvent]) -> list[TabNote]:
+    proxy: list[TabNote] = []
+    for chord_index, group in enumerate(group_simultaneous_events(events)):
+        for event in group.events:
+            proxy.append(
+                TabNote(
+                    pitch=event.pitch,
+                    start=event.start,
+                    duration=event.duration,
+                    string_index=0,
+                    fret=0,
+                    confidence=event.confidence,
+                    chord_index=chord_index,
+                )
+            )
+    return proxy
 
 
 def _part_events(job, part: str) -> list[NoteEvent]:
@@ -140,7 +161,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.12.0"}
+    return {"status": "ok", "version": "0.13.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -316,7 +337,12 @@ def job_parts(job_id: str):
     return {
         "job_id": job_id,
         "parts": [
-            {"id": key, "stem": value.get("stem"), "note_count": len(value.get("notes", []))}
+            {
+                "id": key,
+                "kind": value.get("kind", "strings"),
+                "stem": value.get("stem"),
+                "note_count": len(value.get("notes", [])),
+            }
             for key, value in tracks.items()
         ],
     }
@@ -329,6 +355,14 @@ def tuning_suggestions(job_id: str, family: str = "guitar", part: str = "guitar"
         raise HTTPException(status_code=404, detail="result not ready")
     if family not in {"guitar", "bass", "all"}:
         raise HTTPException(status_code=422, detail="family must be guitar, bass or all")
+    if part == "piano":
+        return {
+            "job_id": job_id,
+            "family": family,
+            "part": part,
+            "suggestions": [],
+            "disclaimer": "Piano is rendered as standard notation and does not use string tuning compatibility.",
+        }
     events = _part_events(job, part)
     suggestions = suggest_tunings(events, family=family, limit=limit)
     return {
@@ -390,6 +424,48 @@ def retune_job(job_id: str, payload: RetuneRequest):
     if job is None or not job.result:
         raise HTTPException(status_code=404, detail="result not ready")
 
+    events = _part_events(job, payload.part)
+
+    if payload.part == "piano":
+        proxy = _score_proxy(events)
+        rhythm = job.result.get("rhythm", {})
+        cfg, quantized = quantize_tab_notes(
+            proxy,
+            bpm=rhythm.get("bpm"),
+            time_signature=TimeSignature(
+                rhythm.get("beats", 4), rhythm.get("beat_type", 4)
+            ),
+            subdivision=rhythm.get("subdivision", 4),
+        )
+        piano_tuning = Tuning("Piano", (21,))
+        xml = export_musicxml(
+            quantized,
+            cfg,
+            piano_tuning,
+            title="AutoTab Piano",
+            standard_only=True,
+        )
+        out = JOBS.root / job_id / "score-piano.musicxml"
+        out.write_text(xml, encoding="utf-8")
+        job.result.update(
+            {
+                "selected_part": "piano",
+                "notes": [note.__dict__ for note in events],
+                "tab": [],
+                "quantized_tab": [note.__dict__ for note in quantized],
+                "tuning": "piano",
+                "profile": "score",
+                "capo": 0,
+                "musicxml": str(out),
+                "musicxml_tab": str(out),
+                "intelligence": {},
+                "ranker": {"enabled": False, "examples": 0},
+                "techniques": [],
+                "correction_count": 0,
+            }
+        )
+        return job.__dict__
+
     tuning = resolve_setup(
         payload.tuning,
         payload.capo,
@@ -398,7 +474,6 @@ def retune_job(job_id: str, payload: RetuneRequest):
     )
     get_profile(payload.profile)
 
-    events = _part_events(job, payload.part)
     model = _load_ranker() if payload.use_learned_ranker and payload.part == "guitar" else None
     if model is not None and model.examples > 0:
         tab = optimize_polyphonic_fingering_learned(
