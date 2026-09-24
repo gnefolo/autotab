@@ -33,6 +33,15 @@ PROFILES = {
 }
 
 
+
+@dataclass(frozen=True)
+class FingeringDiagnostics:
+    input_notes: int
+    playable_notes: int
+    filtered_out_of_range: tuple[tuple[int, float, float], ...]
+    relaxed_groups: tuple[dict, ...]
+
+
 @dataclass(frozen=True)
 class NoteEvent:
     pitch: int
@@ -284,6 +293,161 @@ def optimize_polyphonic_fingering(events: Iterable[NoteEvent], tuning: Tuning, o
         for event, position in zip(group.events, voicing.positions):
             result.append(TabNote(event.pitch, event.start, event.duration, position.string_index, position.fret, event.confidence, chord_index))
     return sorted(result, key=lambda n: (n.start, n.string_index, n.pitch))
+
+
+
+def filter_playable_events(
+    events: Iterable[NoteEvent],
+    tuning: Tuning,
+) -> tuple[list[NoteEvent], list[NoteEvent]]:
+    playable: list[NoteEvent] = []
+    rejected: list[NoteEvent] = []
+    for event in events:
+        if possible_positions(event.pitch, tuning):
+            playable.append(event)
+        else:
+            rejected.append(event)
+    return playable, rejected
+
+
+def optimize_polyphonic_fingering_robust(
+    events: Iterable[NoteEvent],
+    tuning: Tuning,
+    onset_tolerance: float = 0.035,
+    max_candidates_per_group: int = 256,
+    profile: str | FingeringProfile = "original_like",
+) -> tuple[list[TabNote], FingeringDiagnostics]:
+    selected_profile = get_profile(profile) if isinstance(profile, str) else profile
+    original_events = list(events)
+    playable_events, rejected = filter_playable_events(original_events, tuning)
+    groups = group_simultaneous_events(playable_events, onset_tolerance=onset_tolerance)
+    if not groups:
+        return [], FingeringDiagnostics(
+            input_notes=len(original_events),
+            playable_notes=0,
+            filtered_out_of_range=tuple((e.pitch, e.start, e.confidence) for e in rejected),
+            relaxed_groups=(),
+        )
+
+    group_candidates: list[list[Voicing]] = []
+    resolved_groups: list[NoteGroup] = []
+    relaxed: list[dict] = []
+
+    for group_index, group in enumerate(groups):
+        working_events = list(group.events)
+        chosen_voicings: list[Voicing] = []
+        used_span = selected_profile.max_fret_span
+        dropped: list[dict] = []
+
+        # First try the requested profile span, then progressively relax the
+        # hand-span constraint before dropping any AMT note.
+        for span in range(selected_profile.max_fret_span, 13):
+            candidate_group = NoteGroup(group.start, tuple(working_events))
+            chosen_voicings = possible_voicings(
+                candidate_group,
+                tuning,
+                max_fret_span=span,
+                max_candidates=max_candidates_per_group,
+                profile=selected_profile,
+            )
+            if chosen_voicings:
+                used_span = span
+                break
+
+        while not chosen_voicings and len(working_events) > 1:
+            weakest = min(
+                working_events,
+                key=lambda e: (e.confidence, e.duration, -abs(e.pitch - sum(x.pitch for x in working_events) / len(working_events))),
+            )
+            working_events.remove(weakest)
+            dropped.append({
+                "pitch": weakest.pitch,
+                "start": weakest.start,
+                "confidence": weakest.confidence,
+                "reason": "unplayable_simultaneous_cluster",
+            })
+            for span in range(selected_profile.max_fret_span, 13):
+                candidate_group = NoteGroup(group.start, tuple(working_events))
+                chosen_voicings = possible_voicings(
+                    candidate_group,
+                    tuning,
+                    max_fret_span=span,
+                    max_candidates=max_candidates_per_group,
+                    profile=selected_profile,
+                )
+                if chosen_voicings:
+                    used_span = span
+                    break
+
+        if not chosen_voicings:
+            pitches = [e.pitch for e in working_events]
+            raise ValueError(
+                f"No playable voicing remains for pitches {pitches} in {tuning.name}"
+            )
+
+        resolved_group = NoteGroup(group.start, tuple(sorted(working_events, key=lambda e: e.pitch)))
+        resolved_groups.append(resolved_group)
+        group_candidates.append(chosen_voicings)
+
+        if used_span != selected_profile.max_fret_span or dropped:
+            relaxed.append({
+                "group_index": group_index,
+                "original_pitches": [e.pitch for e in group.events],
+                "resolved_pitches": [e.pitch for e in resolved_group.events],
+                "used_fret_span": used_span,
+                "dropped": dropped,
+            })
+
+    dp: list[dict[Voicing, tuple[float, Optional[Voicing]]]] = []
+    dp.append({
+        v: (_voicing_transition_cost(None, v, selected_profile), None)
+        for v in group_candidates[0]
+    })
+    for i in range(1, len(resolved_groups)):
+        layer: dict[Voicing, tuple[float, Optional[Voicing]]] = {}
+        for cur in group_candidates[i]:
+            best_cost = float("inf")
+            best_prev: Optional[Voicing] = None
+            for prev, (prev_cost, _) in dp[i - 1].items():
+                cost = prev_cost + _voicing_transition_cost(prev, cur, selected_profile)
+                if cost < best_cost:
+                    best_cost = cost
+                    best_prev = prev
+            layer[cur] = (best_cost, best_prev)
+        dp.append(layer)
+
+    last = min(dp[-1], key=lambda v: dp[-1][v][0])
+    chosen: list[Voicing] = [last]
+    for i in range(len(dp) - 1, 0, -1):
+        prev = dp[i][chosen[-1]][1]
+        assert prev is not None
+        chosen.append(prev)
+    chosen.reverse()
+
+    result: list[TabNote] = []
+    for chord_index, (group, voicing) in enumerate(zip(resolved_groups, chosen)):
+        for event, position in zip(group.events, voicing.positions):
+            result.append(
+                TabNote(
+                    event.pitch,
+                    event.start,
+                    event.duration,
+                    position.string_index,
+                    position.fret,
+                    event.confidence,
+                    chord_index,
+                )
+            )
+
+    diagnostics = FingeringDiagnostics(
+        input_notes=len(original_events),
+        playable_notes=len(playable_events),
+        filtered_out_of_range=tuple(
+            (e.pitch, e.start, e.confidence) for e in rejected
+        ),
+        relaxed_groups=tuple(relaxed),
+    )
+    return sorted(result, key=lambda n: (n.start, n.string_index, n.pitch)), diagnostics
 
 
 def optimize_fingering(events: Iterable[NoteEvent], tuning: Tuning) -> list[TabNote]:
