@@ -133,3 +133,86 @@ class BasicPitchTranscriber(Transcriber):
                 )
             )
         return result
+
+
+@dataclass
+class ConsensusTranscriber(Transcriber):
+    transcribers: tuple[Transcriber, ...]
+    onset_tolerance: float = 0.07
+    minimum_support: int = 2
+    high_confidence_singleton: float = 0.88
+    name: str = "consensus"
+
+    def transcribe(self, audio_path: Path) -> list[NoteEvent]:
+        if not self.transcribers:
+            return []
+
+        runs = [list(t.transcribe(audio_path)) for t in self.transcribers]
+        candidates: list[tuple[int, NoteEvent]] = []
+        for run_index, events in enumerate(runs):
+            for event in events:
+                candidates.append((run_index, event))
+
+        clusters: list[list[tuple[int, NoteEvent]]] = []
+        for run_index, event in sorted(
+            candidates,
+            key=lambda item: (item[1].pitch, item[1].start, item[0]),
+        ):
+            best_cluster = None
+            best_distance = float("inf")
+            for cluster in clusters:
+                exemplar = cluster[0][1]
+                if exemplar.pitch != event.pitch:
+                    continue
+                if any(existing_run == run_index for existing_run, _ in cluster):
+                    continue
+                center = sum(e.start for _, e in cluster) / len(cluster)
+                distance = abs(event.start - center)
+                if distance <= self.onset_tolerance and distance < best_distance:
+                    best_cluster = cluster
+                    best_distance = distance
+            if best_cluster is None:
+                clusters.append([(run_index, event)])
+            else:
+                best_cluster.append((run_index, event))
+
+        merged: list[NoteEvent] = []
+        run_count = len(self.transcribers)
+        for cluster in clusters:
+            support = len({run_index for run_index, _ in cluster})
+            confidences = [event.confidence for _, event in cluster]
+            max_confidence = max(confidences)
+            if support < self.minimum_support and max_confidence < self.high_confidence_singleton:
+                continue
+
+            events = [event for _, event in cluster]
+            starts = sorted(event.start for event in events)
+            durations = sorted(event.duration for event in events)
+            velocities = sorted(event.velocity for event in events)
+            middle = len(events) // 2
+
+            def median_value(values):
+                if len(values) % 2:
+                    return float(values[middle])
+                return float(values[middle - 1] + values[middle]) / 2.0
+
+            support_ratio = support / run_count
+            mean_confidence = sum(confidences) / len(confidences)
+            consensus_confidence = min(
+                1.0,
+                0.65 * support_ratio + 0.35 * mean_confidence,
+            )
+            bends = max(events, key=lambda event: event.confidence).pitch_bends
+
+            merged.append(
+                NoteEvent(
+                    pitch=events[0].pitch,
+                    start=median_value(starts),
+                    duration=max(0.001, median_value(durations)),
+                    velocity=max(1, min(127, int(round(median_value(velocities))))),
+                    confidence=round(consensus_confidence, 4),
+                    pitch_bends=bends,
+                )
+            )
+
+        return sorted(merged, key=lambda event: (event.start, event.pitch))
