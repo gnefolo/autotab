@@ -396,7 +396,7 @@ def retune_job(job_id: str, payload: RetuneRequest):
     get_profile(payload.profile)
 
     events = _part_events(job, payload.part)
-    model = _load_ranker() if payload.use_learned_ranker else None
+    model = _load_ranker() if payload.use_learned_ranker and payload.part == "guitar" else None
     if model is not None and model.examples > 0:
         tab = optimize_polyphonic_fingering_learned(
             events, tuning, model, profile=payload.profile, strength=payload.ranker_strength
