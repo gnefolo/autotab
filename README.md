@@ -1,4 +1,4 @@
-# AutoTab MVP v0.16
+# AutoTab MVP v0.17
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -288,3 +288,19 @@ AutoTab now measures transcription quality before trying to optimize more downst
 - benchmark smoke-test in CI.
 
 The current metrics establish the Basic Pitch baseline. The next accuracy work should compare guitar-specific AMT models and ensemble strategies against this same benchmark contract rather than choosing models by subjective impression.
+
+
+## Milestone 17 — Guitar AMT Consensus & Cleanup
+
+The guitar path no longer trusts a single Basic Pitch pass.
+
+- three passes are run with sensitive, balanced and conservative thresholds;
+- same-pitch events are clustered within a 70 ms onset window;
+- notes supported by at least two passes are retained;
+- isolated notes survive only when confidence is very high;
+- timing and duration are merged with median estimates;
+- a conservative cleanup removes short low-confidence artifacts and near-duplicate retriggers;
+- impossible clusters are capped to six simultaneous guitar notes;
+- UI/API diagnostics expose the active transcription engine: `basic-pitch-3pass-consensus+cleanup`.
+
+This baseline prioritizes precision over recall, targeting the false-note problem observed on sparse guitar recordings.
