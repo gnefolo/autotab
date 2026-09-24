@@ -419,12 +419,15 @@ def benchmark_job(job_id: str, payload: BenchmarkRequest):
         prediction,
         onset_tolerance=payload.onset_tolerance,
     )
-    return {
+    result = {
         "job_id": job_id,
         "part": payload.part,
         "onset_tolerance": payload.onset_tolerance,
         "metrics": metrics.to_dict(),
     }
+    benchmark_path = JOBS.root / job_id / f"benchmark-{payload.part}.json"
+    benchmark_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return result
 
 
 @app.get("/jobs/{job_id}/parts")
