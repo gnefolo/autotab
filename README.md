@@ -1,4 +1,4 @@
-# AutoTab MVP v0.7
+# AutoTab MVP v0.8
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -108,3 +108,12 @@ The API defaults to `http://localhost:8000`. Override with `NEXT_PUBLIC_AUTOTAB_
 - custom 4–8 string tunings
 - Easy / Rhythm / Lead / Original-like fingering profiles
 - `POST /intelligence` API and intelligent retune controls
+
+
+## Milestone 8 — Human Correction Loop
+- note-level string/fret editor
+- physically validated fingering corrections
+- constrained local re-optimization around the edited chord
+- persistent correction history per job
+- regenerated MusicXML after every correction
+- aggregate prediction → correction dataset endpoint for future learned ranking

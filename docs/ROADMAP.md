@@ -62,10 +62,14 @@ Remaining hardening: harmonic context/key-aware spelling, richer extensions, fin
 - palm mute classifier
 - harmonics
 
-## Milestone 8 - Learning loop
+## Milestone 8 - Learning loop - DONE (v0.8 baseline)
 - AI prediction + human correction history
 - fingering choices by tuning/instrument/style
-- learned fingering ranker
+- constrained local re-optimization around human anchors
+- persistent JSONL correction dataset
+- aggregate training-data API
+
+Remaining hardening: direct score-glyph editing, undo/redo, database persistence, richer context features and learned fingering ranker.
 
 
 ## Milestone 5 — Practice player ✅
