@@ -209,3 +209,32 @@ Remaining hardening: real verified benchmark corpus, guitar-specific AMT adapter
 This milestone targets precision first: fewer false notes and fewer AMT artifacts on sparse guitar recordings.
 
 Remaining hardening: benchmark consensus against verified ground truth, guitar-specific learned AMT, calibration by playing style, direct single-instrument bypass mode, repeated-riff consensus and section re-analysis.
+
+
+## Milestone 18 - Repeated Riff Consistency - DONE (v0.18 baseline)
+- detect short repeated guitar phrases using rhythm + pitch context
+- compare repeated occurrences with one wildcard note position
+- require at least three independent phrase occurrences
+- correct only low-confidence pitch outliers
+- preserve high-confidence musical variations
+- preserve large pitch changes that may represent a real variation
+- apply corrections before fingering/TAB generation
+- expose riff correction count in API/UI diagnostics
+- tests cover low-confidence correction and variation preservation
+
+Remaining hardening: phrase segmentation from beat/downbeat structure, transposition-aware motif matching, duration/onset consensus, repeated-chord consistency and section-level re-analysis.
+
+
+## Milestone 19 - Dual Guitar Source Selection - DONE (v0.19 baseline)
+- run preferred Demucs six-stem separation and also collect the four-stem `other` source as `guitar_alt`
+- transcribe both guitar-source candidates with the same v0.17 consensus+cleanup AMT
+- score source quality using consensus confidence, low-confidence ratio, micro-note ratio, note density and completeness
+- choose the more stable guitar source before riff consistency/fingering
+- keep deterministic tie-breaking toward the dedicated six-stem guitar source
+- expose selected source and candidate scores in the UI
+- retain both source stems in the mixer for manual listening comparison
+- tests cover noisy-source rejection, empty-candidate rejection and deterministic ties
+
+This milestone is particularly targeted at sparse recordings such as voice + guitar, where the four-stem `other` source can sometimes preserve guitar attacks better than the six-stem dedicated guitar output.
+
+Remaining hardening: benchmark source selection against verified ground truth, learn source-quality scoring from data, allow manual source override, cache dual-separation outputs, and compare additional separators.
