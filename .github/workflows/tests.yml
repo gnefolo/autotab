@@ -18,6 +18,8 @@ jobs:
         run: python -m unittest discover -s packages/music_engine/tests -p 'test_*.py' -v
       - name: Audio pipeline contract tests
         run: python -m unittest discover -s packages/audio_pipeline/tests -p 'test_*.py' -v
+      - name: Benchmark smoke test
+        run: python scripts/benchmark_accuracy.py benchmarks/example_reference.json benchmarks/example_prediction.json --json
       - name: Compile Python sources
         run: python -m compileall -q packages apps/api/app
       - name: Launcher syntax
