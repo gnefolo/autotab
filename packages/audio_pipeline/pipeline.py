@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Callable
 import json
 
 from music_engine.engine import NoteEvent, TabNote, get_tuning, optimize_polyphonic_fingering
@@ -40,9 +41,16 @@ class AudioPipeline:
         bpm: float | None = None,
         beats: int = 4,
         beat_type: int = 4,
+        progress_callback: Callable[[int, str], None] | None = None,
     ) -> PipelineResult:
+        def progress(value: int, stage: str) -> None:
+            if progress_callback is not None:
+                progress_callback(value, stage)
+
         work_dir.mkdir(parents=True, exist_ok=True)
+        progress(25, "separating")
         stems = self.separator.separate(audio_path, work_dir / "stems")
+        progress(55, "transcribing")
 
         # Current MVP chooses a guitar stem when supplied. With 4-stem Demucs,
         # guitar usually remains in `other`; instrument-recognition comes next.
@@ -51,6 +59,7 @@ class AudioPipeline:
             stem_path = next(iter(stems.values()))
 
         notes = self.transcriber.transcribe(stem_path)
+        progress(75, "fingering")
         tuning = get_tuning(tuning_key)
         tab = optimize_polyphonic_fingering(notes, tuning)
         rhythm_cfg, quantized = quantize_tab_notes(
@@ -86,4 +95,5 @@ class AudioPipeline:
             techniques=[t.to_dict() for t in techniques],
         )
         result.write_json(work_dir / "result.json")
+        progress(95, "finalizing")
         return result
