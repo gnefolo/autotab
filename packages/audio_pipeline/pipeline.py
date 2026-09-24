@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Callable
 import json
 
-from music_engine.engine import NoteEvent, TabNote, get_tuning, optimize_polyphonic_fingering
+from music_engine.engine import NoteEvent, TabNote, get_tuning, optimize_polyphonic_fingering_robust
 from music_engine.rhythm import TimeSignature, quantize_tab_notes
 from music_engine.musicxml import export_musicxml
 from music_engine.techniques import detect_technique_hints
@@ -21,6 +21,7 @@ class PipelineResult:
     rhythm: dict
     musicxml: str
     techniques: list[dict]
+    fingering_diagnostics: dict
 
     def write_json(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,7 +62,7 @@ class AudioPipeline:
         notes = self.transcriber.transcribe(stem_path)
         progress(75, "fingering")
         tuning = get_tuning(tuning_key)
-        tab = optimize_polyphonic_fingering(notes, tuning)
+        tab, fingering_diagnostics = optimize_polyphonic_fingering_robust(notes, tuning)
         rhythm_cfg, quantized = quantize_tab_notes(
             tab,
             bpm=bpm,
@@ -93,6 +94,7 @@ class AudioPipeline:
             },
             musicxml=str(musicxml_path),
             techniques=[t.to_dict() for t in techniques],
+            fingering_diagnostics=asdict(fingering_diagnostics),
         )
         result.write_json(work_dir / "result.json")
         progress(95, "finalizing")
