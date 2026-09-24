@@ -46,7 +46,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.10.0")
+app = FastAPI(title="AutoTab API", version="0.11.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -57,6 +57,7 @@ app.add_middleware(
 
 
 class RetuneRequest(BaseModel):
+    part: str = "guitar"
     tuning: str = "guitar_standard"
     profile: str = "original_like"
     capo: int = Field(default=0, ge=0, le=12)
@@ -83,6 +84,18 @@ def resolve_setup(
     if custom_open_pitches:
         return make_custom_tuning(custom_open_pitches, name=custom_name, capo=capo)
     return with_capo(get_tuning(tuning_key), capo)
+
+
+
+def _part_events(job, part: str) -> list[NoteEvent]:
+    tracks = job.result.get("tracks", {}) if job.result else {}
+    if tracks:
+        if part not in tracks:
+            raise HTTPException(status_code=422, detail=f"part '{part}' is not available")
+        return [NoteEvent(**note) for note in tracks[part].get("notes", [])]
+    if part != job.result.get("selected_part", "guitar"):
+        raise HTTPException(status_code=422, detail=f"part '{part}' is not available")
+    return [NoteEvent(**note) for note in job.result.get("notes", [])]
 
 
 def _corrections_path(job_id: str) -> pathlib.Path:
@@ -126,7 +139,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.10.0"}
+    return {"status": "ok", "version": "0.11.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -288,18 +301,37 @@ def get_job(job_id: str):
     return job.__dict__
 
 
+@app.get("/jobs/{job_id}/parts")
+def job_parts(job_id: str):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+    tracks = job.result.get("tracks", {})
+    if not tracks:
+        selected = job.result.get("selected_part", "guitar")
+        return {"job_id": job_id, "parts": [{"id": selected, "stem": None, "note_count": len(job.result.get("notes", []))}]}
+    return {
+        "job_id": job_id,
+        "parts": [
+            {"id": key, "stem": value.get("stem"), "note_count": len(value.get("notes", []))}
+            for key, value in tracks.items()
+        ],
+    }
+
+
 @app.get("/jobs/{job_id}/tuning-suggestions")
-def tuning_suggestions(job_id: str, family: str = "guitar", limit: int = 5):
+def tuning_suggestions(job_id: str, family: str = "guitar", part: str = "guitar", limit: int = 5):
     job = JOBS.get(job_id)
     if job is None or not job.result:
         raise HTTPException(status_code=404, detail="result not ready")
     if family not in {"guitar", "bass", "all"}:
         raise HTTPException(status_code=422, detail="family must be guitar, bass or all")
-    events = [NoteEvent(**note) for note in job.result.get("notes", [])]
+    events = _part_events(job, part)
     suggestions = suggest_tunings(events, family=family, limit=limit)
     return {
         "job_id": job_id,
         "family": family,
+        "part": part,
         "suggestions": [item.to_dict() for item in suggestions],
         "disclaimer": "Compatibility is inferred from transcribed pitches and ergonomics; it is not proof of the recorded instrument's original tuning.",
     }
@@ -363,7 +395,7 @@ def retune_job(job_id: str, payload: RetuneRequest):
     )
     get_profile(payload.profile)
 
-    events = [NoteEvent(**note) for note in job.result.get("notes", [])]
+    events = _part_events(job, payload.part)
     model = _load_ranker() if payload.use_learned_ranker else None
     if model is not None and model.examples > 0:
         tab = optimize_polyphonic_fingering_learned(
@@ -413,6 +445,8 @@ def retune_job(job_id: str, payload: RetuneRequest):
 
     job.result.update(
         {
+            "selected_part": payload.part,
+            "notes": [note.__dict__ for note in events],
             "tab": [note.__dict__ for note in tab],
             "quantized_tab": [note.__dict__ for note in quantized],
             "tuning": payload.tuning,
