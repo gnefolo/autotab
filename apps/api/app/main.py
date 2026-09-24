@@ -433,12 +433,12 @@ def retune_job(job_id: str, payload: RetuneRequest):
     out = (
         JOBS.root
         / job_id
-        / f"score-{safe_name}-capo{payload.capo}-{payload.profile}.musicxml"
+        / f"score-{payload.part}-{safe_name}-capo{payload.capo}-{payload.profile}.musicxml"
     )
     tab_out = (
         JOBS.root
         / job_id
-        / f"score-{safe_name}-capo{payload.capo}-{payload.profile}-tab.musicxml"
+        / f"score-{payload.part}-{safe_name}-capo{payload.capo}-{payload.profile}-tab.musicxml"
     )
     out.write_text(xml, encoding="utf-8")
     tab_out.write_text(tab_xml, encoding="utf-8")
@@ -483,7 +483,12 @@ def apply_correction(job_id: str, payload: CorrectionRequest):
     )
     get_profile(payload.profile)
 
-    events = [NoteEvent(**note) for note in job.result.get("notes", [])]
+    events = _part_events(job, payload.part)
+    if job.result.get("selected_part", payload.part) != payload.part:
+        raise HTTPException(
+            status_code=422,
+            detail="generate TAB for this instrument part before editing its fingering",
+        )
     current_tab = [TabNote(**note) for note in job.result.get("tab", [])]
 
     target = next(
@@ -582,6 +587,8 @@ def apply_correction(job_id: str, payload: CorrectionRequest):
 
     job.result.update(
         {
+            "selected_part": payload.part,
+            "notes": [note.__dict__ for note in events],
             "tab": [note.__dict__ for note in tab],
             "quantized_tab": [note.__dict__ for note in quantized],
             "musicxml": str(out),
