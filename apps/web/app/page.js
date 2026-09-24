@@ -70,6 +70,13 @@ const COPY = {
     profileEasy:"Facile",
     profileRhythm:"Ritmica",
     profileLead:"Solista",
+    suggestions:"Compatibilità accordatura",
+    suggestionsHelp:"AutoTab confronta le note trascritte con le accordature disponibili. È un suggerimento di compatibilità, non la prova dell'accordatura originale.",
+    guitar:"Chitarra",
+    bass:"Basso",
+    compatible:"compatibile",
+    select:"Seleziona",
+    noSuggestions:"Nessun suggerimento disponibile",
   },
   en: {
     hero:"Upload a song. AutoTab analyzes it first, then lets you decide how you want to play it.",
@@ -123,6 +130,13 @@ const COPY = {
     profileEasy:"Easy",
     profileRhythm:"Rhythm",
     profileLead:"Lead",
+    suggestions:"Tuning compatibility",
+    suggestionsHelp:"AutoTab compares the transcribed pitches with available tunings. This is a compatibility suggestion, not proof of the original recorded tuning.",
+    guitar:"Guitar",
+    bass:"Bass",
+    compatible:"compatible",
+    select:"Select",
+    noSuggestions:"No suggestions available",
   }
 };
 
@@ -130,6 +144,7 @@ export default function Home() {
   const [lang,setLang]=useState('it');
   const [setupApplied,setSetupApplied]=useState(false);
   const [file,setFile]=useState(null), [tuning,setTuning]=useState('guitar_standard');
+  const [instrumentFamily,setInstrumentFamily]=useState('guitar'), [tuningSuggestions,setTuningSuggestions]=useState([]);
   const [profile,setProfile]=useState('original_like'), [capo,setCapo]=useState(0), [custom,setCustom]=useState('');
   const [useRanker,setUseRanker]=useState(false), [rankerStrength,setRankerStrength]=useState(0.55), [rankerStatus,setRankerStatus]=useState(null);
   const [message,setMessage]=useState(''), [job,setJob]=useState(null), [speed,setSpeed]=useState(1);
@@ -208,6 +223,14 @@ export default function Home() {
   useEffect(()=>{ const saved=window.localStorage.getItem('autotab-lang'); if(saved==='it'||saved==='en') setLang(saved); return()=>stopPolling(); },[]);
   useEffect(()=>{ window.localStorage.setItem('autotab-lang',lang); document.documentElement.lang=lang; },[lang]);
   useEffect(()=>{ fetch(`${API}/ranker/status`).then(r=>r.json()).then(setRankerStatus).catch(()=>{}); },[]);
+  useEffect(()=>{
+    if(!ready||setupApplied)return;
+    fetch(API + "/jobs/" + job.id + "/tuning-suggestions?family=" + instrumentFamily + "&limit=5")
+      .then(r=>r.json())
+      .then(d=>setTuningSuggestions(d.suggestions||[]))
+      .catch(()=>setTuningSuggestions([]));
+  },[ready,setupApplied,job?.id,instrumentFamily]);
+
   useEffect(()=>{ if(audio.current) audio.current.playbackRate=speed; Object.values(stemAudios.current).forEach(a=>{if(a)a.playbackRate=speed;}); },[speed]);
   useEffect(()=>{
     if(!ready)return;
@@ -295,6 +318,25 @@ export default function Home() {
       <div className="stepEyebrow">{t.step} 2</div>
       <div className="sectionTitle">{t.setupTitle}</div>
       <p className="small setupHelp">{t.setupHelp}</p>
+
+      <div className="suggestionBox">
+        <div className="label">{t.suggestions}</div>
+        <div className="small" style={{marginBottom:10}}>{t.suggestionsHelp}</div>
+        <div className="familySwitch">
+          <button className={instrumentFamily==='guitar'?'active':''} onClick={()=>setInstrumentFamily('guitar')}>{t.guitar}</button>
+          <button className={instrumentFamily==='bass'?'active':''} onClick={()=>setInstrumentFamily('bass')}>{t.bass}</button>
+        </div>
+        <div className="suggestionList">
+          {tuningSuggestions.length===0 && <div className="small">{t.noSuggestions}</div>}
+          {tuningSuggestions.map((item,i)=><button key={item.tuning_id} className={`suggestionCard ${tuning===item.tuning_id?'selected':''}`} onClick={()=>setTuning(item.tuning_id)}>
+            <div>
+              <strong>{i+1}. {item.name}</strong>
+              <div className="small">{Math.round((item.coverage||0)*100)}% {t.compatible} · score {item.score}</div>
+            </div>
+            <span>{t.select}</span>
+          </button>)}
+        </div>
+      </div>
 
       <div className="setupGrid">
         <div>
