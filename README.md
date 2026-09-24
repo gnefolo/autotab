@@ -1,4 +1,4 @@
-# AutoTab MVP v0.9
+# AutoTab MVP v0.10
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -177,3 +177,21 @@ The API defaults to `http://localhost:8000`. Override with `NEXT_PUBLIC_AUTOTAB_
 - automatic deterministic fallback when no trained model exists
 - ranker train/status API
 - player controls to train, enable and tune the learned ranker
+
+
+## Milestone 10 — Tuning Intelligence & Auto Setup
+
+AutoTab now evaluates tuning compatibility after transcription, before the user generates the final TAB.
+
+- ranks guitar or bass tuning presets from canonical transcribed notes;
+- measures weighted playable-note coverage;
+- penalizes notes below the instrument range;
+- uses low-position and open-string evidence as ergonomic tie-breakers;
+- exposes `GET /jobs/{job_id}/tuning-suggestions`;
+- shows suggestions only after audio analysis;
+- keeps the decision with the user: a suggestion is selected, never silently applied;
+- clearly labels the result as compatibility inference, not proof of the original recorded tuning.
+
+The intended flow is now:
+
+`Upload & Analyze -> Tuning / Instrument Setup -> Generate TAB -> Practice & Correct`.
