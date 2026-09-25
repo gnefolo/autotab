@@ -1,0 +1,4 @@
+# Optional experimental guitar-specific AMT runtime.
+# Installed only with ./start-autotab.sh --ml --guitar-model
+hf-midi-transcription
+pretty_midi>=0.2.10
