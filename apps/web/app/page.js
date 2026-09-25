@@ -140,6 +140,8 @@ const COPY = {
     fixSection: 'Correggi sezione',
     fixingSection: 'Rianalisi sezione…',
     sectionFixed: 'Sezione rianalizzata',
+    nowPlaying: 'In esecuzione',
+    playhead: 'Cursore TAB',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -262,6 +264,8 @@ const COPY = {
     fixSection: 'Fix section',
     fixingSection: 'Reanalyzing section…',
     sectionFixed: 'Section reanalyzed',
+    nowPlaying: 'Now playing',
+    playhead: 'TAB playhead',
   }
 };
 
@@ -304,6 +308,7 @@ export default function Home() {
   const [refineSource, setRefineSource] = useState('auto');
   const [refining, setRefining] = useState(false);
   const [analysisRevision, setAnalysisRevision] = useState(0);
+  const [activePlayback, setActivePlayback] = useState(null);
 
   const timer = useRef(null);
   const audio = useRef(null);
@@ -312,6 +317,9 @@ export default function Home() {
   const scoreHost = useRef(null);
   const osmd = useRef(null);
   const cursorIndex = useRef(-1);
+  const playhead = useRef(null);
+  const playbackFrame = useRef(null);
+  const playbackOnsets = useRef([]);
   const synthContext = useRef(null);
   const synthNodes = useRef([]);
   const synthInterval = useRef(null);
@@ -511,6 +519,9 @@ export default function Home() {
     setRefineMode('balanced');
     setRefineSource('auto');
     setAnalysisRevision(0);
+    setActivePlayback(null);
+    if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
+    playbackFrame.current = null;
     stopTabSynth();
   }
 
@@ -564,6 +575,8 @@ export default function Home() {
     if (saved === 'it' || saved === 'en') setLang(saved);
     return () => {
       stopPolling();
+      if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
+      playbackFrame.current = null;
       stopTabSynth();
       if (synthContext.current) synthContext.current.close().catch(() => {});
     };
@@ -707,6 +720,10 @@ export default function Home() {
       viewer.cursor.show();
       viewer.cursor.reset();
       cursorIndex.current = -1;
+      playbackOnsets.current = [...new Set((job?.result?.quantized_tab || []).map(n => n.original_start))]
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+      requestAnimationFrame(() => syncCursor(audio.current?.currentTime || 0, true));
     })().catch(e => setMessage(`Score render error: ${e.message}`));
 
     return () => { cancelled = true; };
@@ -891,6 +908,7 @@ export default function Home() {
         Object.values(stemAudios.current).forEach(a => a?.pause());
         await master.play();
         startTabSynth();
+        startPlaybackVisualLoop();
       } else {
         stopTabSynth();
         master.muted = effectiveMuted('original');
@@ -899,37 +917,115 @@ export default function Home() {
           master.play(),
           ...Object.values(stemAudios.current).map(a => a?.play()),
         ]);
+        startPlaybackVisualLoop();
       }
     } else {
       master.pause();
       Object.values(stemAudios.current).forEach(a => a?.pause());
+      stopPlaybackVisualLoop();
       stopTabSynth();
     }
   }
 
-  function syncCursor(time) {
-    const q = job?.result?.quantized_tab || [];
-    if (!osmd.current || !q.length) return;
-    const onsets = [...new Set(q.map(n => n.original_start))].sort((a, b) => a - b);
-    let idx = onsets.findIndex(x => x > time);
-    idx = idx === -1 ? onsets.length - 1 : Math.max(0, idx - 1);
-    if (idx === cursorIndex.current) return;
-    osmd.current.cursor.reset();
-    for (let i = 0; i < idx; i++) osmd.current.cursor.next();
-    osmd.current.cursor.show();
-    cursorIndex.current = idx;
-
-    const cursorEl = scoreHost.current?.querySelector('.osmd-cursor');
-    const scroller = scoreHost.current?.closest('.scoreCanvas');
-    if (cursorEl && scroller) {
-      const cursorRect = cursorEl.getBoundingClientRect();
-      const scrollRect = scroller.getBoundingClientRect();
-      const upper = scrollRect.top + 90;
-      const lower = scrollRect.bottom - 120;
-      if (cursorRect.top < upper || cursorRect.bottom > lower) {
-        cursorEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+  function onsetIndexAt(time, onsets) {
+    if (!onsets.length) return -1;
+    let lo = 0;
+    let hi = onsets.length - 1;
+    let best = 0;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (onsets[mid] <= time + 0.012) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
       }
     }
+    return best;
+  }
+
+  function positionPlayhead(autoScroll = false) {
+    const cursorEl = scoreHost.current?.querySelector('.osmd-cursor');
+    const canvas = scoreHost.current?.closest('.scoreCanvas');
+    const line = playhead.current;
+    if (!cursorEl || !canvas || !line) return;
+
+    const cursorRect = cursorEl.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const left = cursorRect.left - canvasRect.left + canvas.scrollLeft + Math.max(1, cursorRect.width / 2);
+    const top = cursorRect.top - canvasRect.top + canvas.scrollTop;
+    const height = Math.max(42, cursorRect.height);
+
+    line.style.transform = `translate3d(${Math.round(left)}px,${Math.round(top)}px,0)`;
+    line.style.height = `${Math.round(height)}px`;
+    line.style.opacity = '1';
+
+    if (autoScroll) {
+      const targetTop = Math.max(0, top - canvas.clientHeight * 0.34);
+      const outside = top < canvas.scrollTop + canvas.clientHeight * 0.14
+        || top + height > canvas.scrollTop + canvas.clientHeight * 0.78;
+      if (outside) canvas.scrollTo({ top: targetTop, behavior: 'smooth' });
+    }
+  }
+
+  function syncCursor(time, force = false) {
+    const q = job?.result?.quantized_tab || [];
+    if (!osmd.current || !q.length) return;
+
+    let onsets = playbackOnsets.current;
+    if (!onsets.length) {
+      onsets = [...new Set(q.map(n => n.original_start))]
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+      playbackOnsets.current = onsets;
+    }
+    if (!onsets.length) return;
+
+    const idx = onsetIndexAt(time, onsets);
+    if (idx < 0) return;
+    const changed = idx !== cursorIndex.current;
+
+    if (changed || force) {
+      const cursor = osmd.current.cursor;
+      if (cursorIndex.current < 0 || idx < cursorIndex.current || force) {
+        cursor.reset();
+        for (let i = 0; i < idx; i++) cursor.next();
+      } else {
+        for (let i = cursorIndex.current; i < idx; i++) cursor.next();
+      }
+      cursor.show();
+      cursorIndex.current = idx;
+
+      const onset = onsets[idx];
+      const notes = (job?.result?.tab || [])
+        .filter(note => Math.abs((note.start ?? 0) - onset) <= 0.045)
+        .sort((a, b) => (a.string_index ?? 0) - (b.string_index ?? 0));
+      setActivePlayback({ onset, notes, chordIndex: notes[0]?.chord_index ?? idx });
+    }
+
+    positionPlayhead(changed);
+  }
+
+  function playbackVisualLoop() {
+    const a = audio.current;
+    if (!a || a.paused || a.ended) {
+      playbackFrame.current = null;
+      return;
+    }
+    const now = a.currentTime;
+    setCurrent(now);
+    syncCursor(now);
+    playbackFrame.current = requestAnimationFrame(playbackVisualLoop);
+  }
+
+  function startPlaybackVisualLoop() {
+    if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
+    playbackFrame.current = requestAnimationFrame(playbackVisualLoop);
+  }
+
+  function stopPlaybackVisualLoop() {
+    if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
+    playbackFrame.current = null;
   }
 
   function onTime() {
@@ -945,8 +1041,10 @@ export default function Home() {
       }
     }
     if (listenModeRef.current === 'song') syncStemTransport(a);
-    setCurrent(a.currentTime);
-    syncCursor(a.currentTime);
+    if (a.paused) {
+      setCurrent(a.currentTime);
+      syncCursor(a.currentTime);
+    }
   }
 
   function seek(value) {
@@ -954,7 +1052,7 @@ export default function Home() {
     if (!audio.current) return;
     audio.current.currentTime = next;
     setCurrent(next);
-    syncCursor(next);
+    syncCursor(next, true);
     Object.values(stemAudios.current).forEach(a => { if (a) a.currentTime = next; });
     if (listenModeRef.current === 'tab' && !audio.current.paused) {
       stopTabSynth();
@@ -997,7 +1095,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.21</span>
+          <span className="versionTag">0.22</span>
         </div>
       </header>
 
@@ -1444,6 +1542,20 @@ export default function Home() {
             </div>
             <div className="scoreCanvas">
               <div ref={scoreHost} />
+              <div ref={playhead} className="songsterrPlayhead" aria-hidden="true">
+                <span className="playheadCap" />
+              </div>
+              {activePlayback && (
+                <div className="nowPlayingBadge" aria-live="polite">
+                  <span>{t.nowPlaying}</span>
+                  <strong>#{activePlayback.chordIndex}</strong>
+                  {activePlayback.notes?.length > 0 && (
+                    <em>
+                      {activePlayback.notes.map(n => `S${(n.string_index ?? 0) + 1}:F${n.fret}`).join(' · ')}
+                    </em>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
@@ -1525,6 +1637,9 @@ export default function Home() {
               ref={audio}
               src={`${API}/jobs/${job.id}/audio`}
               onTimeUpdate={onTime}
+              onPlay={startPlaybackVisualLoop}
+              onPause={stopPlaybackVisualLoop}
+              onEnded={stopPlaybackVisualLoop}
               onLoadedMetadata={e => {
                 setCurrent(0);
                 setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0);
