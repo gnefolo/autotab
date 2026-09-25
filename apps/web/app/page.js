@@ -142,6 +142,14 @@ const COPY = {
     sectionFixed: 'Sezione rianalizzata',
     nowPlaying: 'In esecuzione',
     playhead: 'Cursore TAB',
+    secondOpinion: 'Second opinion chitarra',
+    secondOpinionHelp: 'Confronta la trascrizione corrente con un modello pretrained specifico per chitarra. Non modifica automaticamente la TAB.',
+    runSecondOpinion: 'Esegui second opinion',
+    secondOpinionRunning: 'Analisi second opinion…',
+    agreement: 'Accordo modelli',
+    primarySupport: 'Note primarie confermate',
+    secondarySupport: 'Note secondarie confermate',
+    modelNotInstalled: 'Modello guitar-specific non installato. Avvia con --ml --guitar-model.',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -266,6 +274,14 @@ const COPY = {
     sectionFixed: 'Section reanalyzed',
     nowPlaying: 'Now playing',
     playhead: 'TAB playhead',
+    secondOpinion: 'Guitar second opinion',
+    secondOpinionHelp: 'Compare the current transcription with a pretrained guitar-specific model. It does not automatically change the TAB.',
+    runSecondOpinion: 'Run second opinion',
+    secondOpinionRunning: 'Running second opinion…',
+    agreement: 'Model agreement',
+    primarySupport: 'Primary notes confirmed',
+    secondarySupport: 'Secondary notes confirmed',
+    modelNotInstalled: 'Guitar-specific model is not installed. Start with --ml --guitar-model.',
   }
 };
 
@@ -309,6 +325,9 @@ export default function Home() {
   const [refining, setRefining] = useState(false);
   const [analysisRevision, setAnalysisRevision] = useState(0);
   const [activePlayback, setActivePlayback] = useState(null);
+  const [mlDiagnostics, setMlDiagnostics] = useState(null);
+  const [secondOpinion, setSecondOpinion] = useState(null);
+  const [secondOpinionRunning, setSecondOpinionRunning] = useState(false);
 
   const timer = useRef(null);
   const audio = useRef(null);
@@ -413,6 +432,31 @@ export default function Home() {
   }
 
 
+
+
+  async function runSecondOpinion() {
+    if (!job?.id || !selectedPart.startsWith('guitar')) return;
+    setSecondOpinionRunning(true);
+    setMessage(t.secondOpinionRunning);
+    try {
+      const res = await fetch(`${API}/jobs/${job.id}/second-opinion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: refineSource, onset_tolerance: 0.08 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(data.detail || t.apiFail);
+        return;
+      }
+      setSecondOpinion(data);
+      setMessage('');
+    } catch (error) {
+      setMessage(error?.message || t.apiFail);
+    } finally {
+      setSecondOpinionRunning(false);
+    }
+  }
 
   async function refineSection(window) {
     if (!job?.id || !window || !selectedPart.startsWith('guitar')) return;
@@ -520,6 +564,7 @@ export default function Home() {
     setRefineSource('auto');
     setAnalysisRevision(0);
     setActivePlayback(null);
+    setSecondOpinion(null);
     if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
     playbackFrame.current = null;
     stopTabSynth();
@@ -589,6 +634,13 @@ export default function Home() {
 
   useEffect(() => {
     fetch(`${API}/ranker/status`).then(r => r.json()).then(setRankerStatus).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API}/diagnostics/ml`)
+      .then(r => r.json())
+      .then(setMlDiagnostics)
+      .catch(() => setMlDiagnostics(null));
   }, []);
 
   useEffect(() => {
@@ -1112,7 +1164,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.22</span>
+          <span className="versionTag">0.23</span>
         </div>
       </header>
 
@@ -1275,6 +1327,34 @@ export default function Home() {
                 <button className="secondaryAction" disabled={refining} onClick={refineTranscription}>
                   {refining ? t.refining : t.refineAction}
                 </button>
+              </div>
+            )}
+
+            {selectedPart.startsWith('guitar') && (
+              <div className="secondOpinionPanel">
+                <div className="sectionLabel">{t.secondOpinion}</div>
+                <p className="microCopy">{t.secondOpinionHelp}</p>
+                {mlDiagnostics?.guitar_specific_import ? (
+                  <>
+                    <button
+                      className="secondaryAction"
+                      disabled={secondOpinionRunning}
+                      onClick={runSecondOpinion}
+                    >
+                      {secondOpinionRunning ? t.secondOpinionRunning : t.runSecondOpinion}
+                    </button>
+                    {secondOpinion?.agreement && (
+                      <div className="secondOpinionStats">
+                        <div><span>{t.agreement}</span><strong>{Math.round((secondOpinion.agreement.agreement_f1 || 0) * 100)}%</strong></div>
+                        <div><span>{t.primarySupport}</span><strong>{Math.round((secondOpinion.agreement.primary_support_ratio || 0) * 100)}%</strong></div>
+                        <div><span>{t.secondarySupport}</span><strong>{Math.round((secondOpinion.agreement.secondary_support_ratio || 0) * 100)}%</strong></div>
+                        <div><span>{t.notes}</span><strong>{secondOpinion.agreement.primary_notes} / {secondOpinion.agreement.secondary_notes}</strong></div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="microMeta">{t.modelNotInstalled}</div>
+                )}
               </div>
             )}
 
