@@ -1,4 +1,4 @@
-# AutoTab MVP v0.23
+# AutoTab MVP v0.25
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -389,3 +389,27 @@ The second opinion:
 - is surfaced directly in the post-analysis accuracy panel.
 
 The external guitar-specific model remains experimental and is treated as a second opinion rather than the default for polyphonic strumming.
+
+
+## Milestone 24 — Disagreement-Aware Ensemble
+
+AutoTab no longer treats model disagreement as a binary failure or blindly unions both transcriptions.
+
+After running Guitar second opinion, the ensemble review:
+
+- classifies events as confirmed, primary-only or secondary-only;
+- validates disagreements against AMT confidence, note duration, physical guitar range, chord context and melodic neighbors;
+- marks each disagreement as `keep`, `review` or `reject`;
+- builds a conservative safe-note proposal;
+- keeps review notes out of that proposal until the user verifies them;
+- makes critical disagreements directly auditionable from the UI;
+- applies the safe ensemble only after explicit user confirmation.
+
+Endpoints:
+
+```
+POST /jobs/{job_id}/ensemble-review
+POST /jobs/{job_id}/ensemble-apply
+```
+
+Applying the ensemble refreshes canonical guitar notes, confidence diagnostics, repeated-riff consistency and inferred Rhythm/Lead views. The default behavior remains non-destructive until the user chooses **Apply safe ensemble**.
