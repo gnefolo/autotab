@@ -954,19 +954,30 @@ export default function Home() {
     const cursorEl = scoreHost.current?.querySelector('#cursorImg-0, [id^="cursorImg-"], .osmd-cursor');
     const canvas = scoreHost.current?.closest('.scoreCanvas');
     const line = playhead.current;
-    if (!cursorEl || !canvas || !line) return;
+    if (!canvas || !line) return;
 
-    const cursorRect = cursorEl.getBoundingClientRect();
     const canvasRect = canvas.getBoundingClientRect();
-    const left = cursorRect.left - canvasRect.left + canvas.scrollLeft + Math.max(1, cursorRect.width / 2);
-    const top = cursorRect.top - canvasRect.top + canvas.scrollTop;
-    const height = Math.max(42, cursorRect.height);
+
+    let left;
+    let top;
+    let height;
+
+    if (cursorEl) {
+      const cursorRect = cursorEl.getBoundingClientRect();
+      left = cursorRect.left - canvasRect.left + canvas.scrollLeft + Math.max(1, cursorRect.width / 2);
+      top = cursorRect.top - canvasRect.top + canvas.scrollTop;
+      height = Math.max(54, cursorRect.height);
+    } else {
+      left = canvas.scrollLeft + Math.max(24, canvas.clientWidth * 0.18);
+      top = canvas.scrollTop + 18;
+      height = Math.max(120, canvas.clientHeight * 0.5);
+    }
 
     line.style.transform = `translate3d(${Math.round(left)}px,${Math.round(top)}px,0)`;
     line.style.height = `${Math.round(height)}px`;
     line.style.opacity = '1';
 
-    if (autoScroll) {
+    if (autoScroll && cursorEl) {
       const targetTop = Math.max(0, top - canvas.clientHeight * 0.34);
       const outside = top < canvas.scrollTop + canvas.clientHeight * 0.14
         || top + height > canvas.scrollTop + canvas.clientHeight * 0.78;
