@@ -150,6 +150,21 @@ const COPY = {
     primarySupport: 'Note primarie confermate',
     secondarySupport: 'Note secondarie confermate',
     modelNotInstalled: 'Modello guitar-specific non installato. Avvia con --ml --guitar-model.',
+    ensembleTitle: 'Validazione ensemble',
+    ensembleHelp: 'Classifica i disaccordi tra i due modelli e costruisce una proposta conservativa. Non cambia la trascrizione finché non la applichi.',
+    reviewEnsemble: 'Analizza disaccordi',
+    reviewingEnsemble: 'Validazione ensemble…',
+    confirmedNotes: 'Confermate',
+    primaryOnly: 'Solo primary',
+    secondaryOnly: 'Solo secondary',
+    keepNotes: 'Keep',
+    reviewNotes: 'Da verificare',
+    rejectNotes: 'Reject',
+    safeNotes: 'Note proposta safe',
+    applyEnsemble: 'Applica ensemble sicuro',
+    applyingEnsemble: 'Applicazione ensemble…',
+    ensembleApplied: 'Ensemble sicuro applicato',
+    ensembleWarning: 'Le note da verificare non vengono incluse automaticamente nella proposta safe.',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -282,6 +297,21 @@ const COPY = {
     primarySupport: 'Primary notes confirmed',
     secondarySupport: 'Secondary notes confirmed',
     modelNotInstalled: 'Guitar-specific model is not installed. Start with --ml --guitar-model.',
+    ensembleTitle: 'Ensemble validation',
+    ensembleHelp: 'Classifies disagreements between the two models and builds a conservative proposal. It does not change the transcription until you apply it.',
+    reviewEnsemble: 'Review disagreements',
+    reviewingEnsemble: 'Validating ensemble…',
+    confirmedNotes: 'Confirmed',
+    primaryOnly: 'Primary only',
+    secondaryOnly: 'Secondary only',
+    keepNotes: 'Keep',
+    reviewNotes: 'Needs review',
+    rejectNotes: 'Reject',
+    safeNotes: 'Safe proposal notes',
+    applyEnsemble: 'Apply safe ensemble',
+    applyingEnsemble: 'Applying ensemble…',
+    ensembleApplied: 'Safe ensemble applied',
+    ensembleWarning: 'Notes marked for review are not automatically included in the safe proposal.',
   }
 };
 
@@ -328,6 +358,9 @@ export default function Home() {
   const [mlDiagnostics, setMlDiagnostics] = useState(null);
   const [secondOpinion, setSecondOpinion] = useState(null);
   const [secondOpinionRunning, setSecondOpinionRunning] = useState(false);
+  const [ensembleReview, setEnsembleReview] = useState(null);
+  const [ensembleRunning, setEnsembleRunning] = useState(false);
+  const [ensembleApplying, setEnsembleApplying] = useState(false);
 
   const timer = useRef(null);
   const audio = useRef(null);
@@ -436,6 +469,7 @@ export default function Home() {
   async function runSecondOpinion() {
     if (!job?.id || !selectedPart.startsWith('guitar')) return;
     setSecondOpinionRunning(true);
+    setEnsembleReview(null);
     setMessage(t.secondOpinionRunning);
     try {
       const res = await fetch(`${API}/jobs/${job.id}/second-opinion`, {
@@ -454,6 +488,57 @@ export default function Home() {
       setMessage(error?.message || t.apiFail);
     } finally {
       setSecondOpinionRunning(false);
+    }
+  }
+
+
+  async function reviewEnsemble() {
+    if (!job?.id || !secondOpinion?.agreement) return;
+    setEnsembleRunning(true);
+    setMessage(t.reviewingEnsemble);
+    try {
+      const res = await fetch(`${API}/jobs/${job.id}/ensemble-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(setupPayload()),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(data.detail || t.apiFail);
+        return;
+      }
+      setEnsembleReview(data);
+      setMessage('');
+    } catch (error) {
+      setMessage(error?.message || t.apiFail);
+    } finally {
+      setEnsembleRunning(false);
+    }
+  }
+
+  async function applySafeEnsemble() {
+    if (!job?.id || !ensembleReview) return;
+    setEnsembleApplying(true);
+    setMessage(t.applyingEnsemble);
+    try {
+      const res = await fetch(`${API}/jobs/${job.id}/ensemble-apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(setupPayload()),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(data.detail || t.apiFail);
+        return;
+      }
+      setJob(data);
+      setSelectedPart('guitar');
+      setAnalysisRevision(v => v + 1);
+      setMessage(t.ensembleApplied);
+    } catch (error) {
+      setMessage(error?.message || t.apiFail);
+    } finally {
+      setEnsembleApplying(false);
     }
   }
 
@@ -479,6 +564,8 @@ export default function Home() {
       }
       setJob(data);
       setSelectedPart('guitar');
+      setSecondOpinion(null);
+      setEnsembleReview(null);
       setAnalysisRevision(v => v + 1);
       setMessage(t.sectionFixed);
     } catch (error) {
@@ -505,6 +592,8 @@ export default function Home() {
       }
       setJob(data);
       setSelectedPart('guitar');
+      setSecondOpinion(null);
+      setEnsembleReview(null);
       setAnalysisRevision(v => v + 1);
       setMessage(t.refined);
     } catch (error) {
@@ -564,6 +653,7 @@ export default function Home() {
     setAnalysisRevision(0);
     setActivePlayback(null);
     setSecondOpinion(null);
+    setEnsembleReview(null);
     if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
     playbackFrame.current = null;
     stopTabSynth();
@@ -1170,7 +1260,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.24</span>
+          <span className="versionTag">0.25</span>
         </div>
       </header>
 
@@ -1350,12 +1440,51 @@ export default function Home() {
                       {secondOpinionRunning ? t.secondOpinionRunning : t.runSecondOpinion}
                     </button>
                     {secondOpinion?.agreement && (
-                      <div className="secondOpinionStats">
-                        <div><span>{t.agreement}</span><strong>{Math.round((secondOpinion.agreement.agreement_f1 || 0) * 100)}%</strong></div>
-                        <div><span>{t.primarySupport}</span><strong>{Math.round((secondOpinion.agreement.primary_support_ratio || 0) * 100)}%</strong></div>
-                        <div><span>{t.secondarySupport}</span><strong>{Math.round((secondOpinion.agreement.secondary_support_ratio || 0) * 100)}%</strong></div>
-                        <div><span>{t.notes}</span><strong>{secondOpinion.agreement.primary_notes} / {secondOpinion.agreement.secondary_notes}</strong></div>
-                      </div>
+                      <>
+                        <div className="secondOpinionStats">
+                          <div><span>{t.agreement}</span><strong>{Math.round((secondOpinion.agreement.agreement_f1 || 0) * 100)}%</strong></div>
+                          <div><span>{t.primarySupport}</span><strong>{Math.round((secondOpinion.agreement.primary_support_ratio || 0) * 100)}%</strong></div>
+                          <div><span>{t.secondarySupport}</span><strong>{Math.round((secondOpinion.agreement.secondary_support_ratio || 0) * 100)}%</strong></div>
+                          <div><span>{t.notes}</span><strong>{secondOpinion.agreement.primary_notes} / {secondOpinion.agreement.secondary_notes}</strong></div>
+                        </div>
+                        <div className="ensembleBlock">
+                          <div className="sectionLabel">{t.ensembleTitle}</div>
+                          <p className="microCopy">{t.ensembleHelp}</p>
+                          <button
+                            className="secondaryAction"
+                            disabled={ensembleRunning}
+                            onClick={reviewEnsemble}
+                          >
+                            {ensembleRunning ? t.reviewingEnsemble : t.reviewEnsemble}
+                          </button>
+                          {ensembleReview && (
+                            <>
+                              <div className="ensembleStats">
+                                <div className="confirmed"><span>{t.confirmedNotes}</span><strong>{ensembleReview.confirmed}</strong></div>
+                                <div><span>{t.primaryOnly}</span><strong>{ensembleReview.primary_only}</strong></div>
+                                <div><span>{t.secondaryOnly}</span><strong>{ensembleReview.secondary_only}</strong></div>
+                                <div className="keep"><span>{t.keepNotes}</span><strong>{ensembleReview.keep}</strong></div>
+                                <div className="review"><span>{t.reviewNotes}</span><strong>{ensembleReview.review}</strong></div>
+                                <div className="reject"><span>{t.rejectNotes}</span><strong>{ensembleReview.reject}</strong></div>
+                                <div className="safe span2"><span>{t.safeNotes}</span><strong>{ensembleReview.safe_note_count}</strong></div>
+                              </div>
+                              <div className="ensembleDecisionBar">
+                                <i className="keep" style={{width: `${Math.round((ensembleReview.keep || 0) / Math.max(1, (ensembleReview.keep || 0) + (ensembleReview.review || 0) + (ensembleReview.reject || 0)) * 100)}%`}} />
+                                <i className="review" style={{width: `${Math.round((ensembleReview.review || 0) / Math.max(1, (ensembleReview.keep || 0) + (ensembleReview.review || 0) + (ensembleReview.reject || 0)) * 100)}%`}} />
+                                <i className="reject" style={{width: `${Math.round((ensembleReview.reject || 0) / Math.max(1, (ensembleReview.keep || 0) + (ensembleReview.review || 0) + (ensembleReview.reject || 0)) * 100)}%`}} />
+                              </div>
+                              <p className="microMeta">{t.ensembleWarning}</p>
+                              <button
+                                className="primaryAction ensembleApply"
+                                disabled={ensembleApplying}
+                                onClick={applySafeEnsemble}
+                              >
+                                {ensembleApplying ? t.applyingEnsemble : t.applyEnsemble}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
                     )}
                   </>
                 ) : (
