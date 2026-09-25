@@ -43,8 +43,9 @@ from music_engine.tuning_intelligence import suggest_tunings
 from music_engine.accuracy import confidence_summary, evaluate_note_events
 
 from .schemas import NotationRequest, TabNoteOut, TabRequest
-from audio_pipeline.adapters import build_guitar_transcriber
+from audio_pipeline.adapters import HFGuitarTranscriber, build_guitar_transcriber
 from audio_pipeline.source_selection import select_guitar_source
+from audio_pipeline.second_opinion import compare_transcriptions
 from music_engine.guitar_roles import split_guitar_roles
 from music_engine.riff_consistency import harmonize_repeated_riffs
 from music_engine.refinement import replace_events_in_window
@@ -55,7 +56,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.21.0")
+app = FastAPI(title="AutoTab API", version="0.23.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -99,6 +100,11 @@ class RefineSectionRequest(BaseModel):
     end: float = Field(gt=0.0)
     mode: str = "precise"
     source: str = "auto"
+
+
+class SecondOpinionRequest(BaseModel):
+    source: str = "auto"
+    onset_tolerance: float = Field(default=0.08, gt=0.0, le=0.5)
 
 
 class CorrectionRequest(RetuneRequest):
@@ -220,7 +226,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.21.0"}
+    return {"status": "ok", "version": "0.23.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -230,6 +236,7 @@ def diagnostics_ml():
         "python_executable": sys.executable,
         "demucs_import": importlib.util.find_spec("demucs") is not None,
         "basic_pitch_import": importlib.util.find_spec("basic_pitch") is not None,
+        "guitar_specific_import": importlib.util.find_spec("hf_midi_transcription") is not None,
         "ffmpeg": shutil.which("ffmpeg"),
         "preferred_demucs_model": "htdemucs_6s",
         "fallback_demucs_model": "htdemucs",
@@ -385,6 +392,63 @@ def get_job(job_id: str):
 
 
 
+
+
+
+@app.post("/jobs/{job_id}/second-opinion")
+def guitar_second_opinion(job_id: str, payload: SecondOpinionRequest):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+
+    if importlib.util.find_spec("hf_midi_transcription") is None:
+        raise HTTPException(
+            status_code=424,
+            detail="Guitar-specific AMT is not installed. Restart with ./start-autotab.sh --ml --guitar-model",
+        )
+
+    tracks = job.result.get("tracks", {})
+    track = tracks.get("guitar")
+    if not track:
+        raise HTTPException(status_code=404, detail="guitar track not available")
+
+    stems = job.result.get("stems", {})
+    source = payload.source
+    if source == "auto":
+        source = (
+            track.get("stem")
+            or (track.get("source_selection") or {}).get("selected_source")
+            or ("guitar" if "guitar" in stems else "other")
+        )
+    if source not in {"guitar", "guitar_alt", "other"}:
+        raise HTTPException(status_code=422, detail="source must be auto, guitar, guitar_alt or other")
+    source_path = stems.get(source)
+    if not source_path:
+        raise HTTPException(status_code=422, detail=f"source '{source}' is not available")
+
+    primary = [NoteEvent(**row) for row in track.get("notes", [])]
+    transcriber = HFGuitarTranscriber()
+    secondary = transcriber.transcribe(pathlib.Path(source_path))
+    agreement = compare_transcriptions(
+        primary,
+        secondary,
+        onset_tolerance=payload.onset_tolerance,
+    )
+    report = {
+        "engine": transcriber.name,
+        "source": source,
+        "onset_tolerance": payload.onset_tolerance,
+        "agreement": agreement.to_dict(),
+        "secondary_notes": [note.__dict__ for note in secondary],
+    }
+    track["second_opinion"] = report
+    report_path = JOBS.root / job_id / "second-opinion-guitar.json"
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return {
+        "job_id": job_id,
+        "part": "guitar",
+        **report,
+    }
 
 
 @app.post("/jobs/{job_id}/retranscribe-section")
