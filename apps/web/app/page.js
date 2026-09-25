@@ -165,6 +165,10 @@ const COPY = {
     applyingEnsemble: 'Applicazione ensemble…',
     ensembleApplied: 'Ensemble sicuro applicato',
     ensembleWarning: 'Le note da verificare non vengono incluse automaticamente nella proposta safe.',
+    criticalDisagreements: 'Disaccordi critici',
+    confirmed: 'confermata',
+    primaryOnlyShort: 'primary',
+    secondaryOnlyShort: 'secondary',
   },
   en: {
     tagline: 'From audio to playable TAB.',
@@ -312,6 +316,10 @@ const COPY = {
     applyingEnsemble: 'Applying ensemble…',
     ensembleApplied: 'Safe ensemble applied',
     ensembleWarning: 'Notes marked for review are not automatically included in the safe proposal.',
+    criticalDisagreements: 'Critical disagreements',
+    confirmed: 'confirmed',
+    primaryOnlyShort: 'primary',
+    secondaryOnlyShort: 'secondary',
   }
 };
 
@@ -1474,6 +1482,32 @@ export default function Home() {
                                 <i className="reject" style={{width: `${Math.round((ensembleReview.reject || 0) / Math.max(1, (ensembleReview.keep || 0) + (ensembleReview.review || 0) + (ensembleReview.reject || 0)) * 100)}%`}} />
                               </div>
                               <p className="microMeta">{t.ensembleWarning}</p>
+                              <div className="ensembleDisagreements">
+                                <div className="sectionLabel">{t.criticalDisagreements}</div>
+                                {(ensembleReview.decisions || [])
+                                  .filter(row => row.origin !== 'confirmed')
+                                  .sort((a, b) => (a.score || 0) - (b.score || 0))
+                                  .slice(0, 18)
+                                  .map((row, i) => (
+                                    <button
+                                      key={`${row.origin}-${row.start}-${row.pitch}-${i}`}
+                                      className={`ensembleDecision ${row.decision}`}
+                                      onClick={() => {
+                                        if (audio.current) {
+                                          audio.current.currentTime = row.start;
+                                          setCurrent(row.start);
+                                          audio.current.play().catch(() => {});
+                                        }
+                                      }}
+                                      title={(row.reasons || []).join(' · ')}
+                                    >
+                                      <span>{fmt(row.start)}</span>
+                                      <strong>MIDI {row.pitch}</strong>
+                                      <em>{row.origin === 'primary_only' ? t.primaryOnlyShort : t.secondaryOnlyShort}</em>
+                                      <b>{row.decision} · {Math.round((row.score || 0) * 100)}%</b>
+                                    </button>
+                                  ))}
+                              </div>
                               <button
                                 className="primaryAction ensembleApply"
                                 disabled={ensembleApplying}
