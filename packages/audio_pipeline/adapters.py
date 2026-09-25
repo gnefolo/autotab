@@ -340,3 +340,50 @@ def build_guitar_transcriber(mode: str = "balanced") -> Transcriber:
         low_confidence_threshold=cfg["cleanup_confidence"],
         name=f"basic-pitch-3pass-{mode}+cleanup",
     )
+
+
+@dataclass
+class HFGuitarTranscriber(Transcriber):
+    device: str = "auto"
+    batch_size: int = 8
+    name: str = "hf-midi-transcription:guitar"
+
+    def transcribe(self, audio_path: Path) -> list[NoteEvent]:
+        try:
+            from hf_midi_transcription import MidiTranscriptionModel
+            import pretty_midi
+        except Exception as exc:
+            raise RuntimeError(
+                "Guitar-specific AMT is not installed. Start AutoTab with "
+                "./start-autotab.sh --ml --guitar-model"
+            ) from exc
+
+        with tempfile.TemporaryDirectory(prefix="autotab-hf-guitar-") as td:
+            midi_path = Path(td) / "guitar.mid"
+            model = MidiTranscriptionModel(
+                instrument="guitar",
+                device=self.device,
+                batch_size=self.batch_size,
+            )
+            model.transcribe(str(audio_path), str(midi_path))
+
+            midi = pretty_midi.PrettyMIDI(str(midi_path))
+            result: list[NoteEvent] = []
+            for instrument in midi.instruments:
+                if instrument.is_drum:
+                    continue
+                for note in instrument.notes:
+                    duration = max(0.001, float(note.end) - float(note.start))
+                    velocity = max(1, min(127, int(note.velocity)))
+                    result.append(
+                        NoteEvent(
+                            pitch=int(note.pitch),
+                            start=float(note.start),
+                            duration=duration,
+                            velocity=velocity,
+                            confidence=max(0.25, min(1.0, velocity / 127.0)),
+                            pitch_bends=(),
+                        )
+                    )
+
+        return sorted(result, key=lambda event: (event.start, event.pitch))
