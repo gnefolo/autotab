@@ -458,3 +458,10 @@ input,select{border-radius:0}
   stroke:#78c442!important;
   stroke-width:3px!important;
 }
+
+.secondOpinionPanel{border:1px solid var(--border);background:#0e1113;padding:12px;margin:14px 0}
+.secondOpinionStats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.secondOpinionStats>div{border:1px solid var(--border);padding:8px;display:flex;flex-direction:column;gap:3px}
+.secondOpinionStats span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--soft)}
+.secondOpinionStats strong{font-size:16px;color:var(--text)}
+@media(max-width:760px){.secondOpinionStats{grid-template-columns:1fr}}
