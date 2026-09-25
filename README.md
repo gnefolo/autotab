@@ -1,4 +1,4 @@
-# AutoTab MVP v0.21
+# AutoTab MVP v0.23
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -357,3 +357,35 @@ Low-confidence windows are now actionable.
 - refresh confidence, riff consistency and inferred Rhythm/Lead views afterwards.
 
 Section refinement is limited to 30 seconds and reuses the already-separated stems, so Demucs is not rerun.
+
+
+## Milestone 22 — Songsterr-style Score Playhead
+
+The score/TAB workspace now has a dedicated high-contrast vertical playhead.
+
+- playback visuals run through `requestAnimationFrame`;
+- OSMD cursor advancement is incremental during normal playback;
+- seek/backward jumps rebuild cursor position safely;
+- the viewport auto-scrolls as the active event changes system;
+- a now-playing badge shows the active event and string:fret fingering;
+- AutoTab targets OSMD's real `cursorImg-*` SVG cursor and keeps an overlay fallback visible if the cursor DOM is delayed.
+
+## Milestone 23 — Guitar-Specific AMT Second Opinion
+
+AutoTab can optionally compare its default guitar transcription with a pretrained guitar-specific model.
+
+Install the optional model with:
+
+```bash
+./start-autotab.sh --ml --guitar-model
+```
+
+The second opinion:
+- does not replace the main transcription automatically;
+- uses the currently selected guitar source;
+- compares exact MIDI pitch plus onset proximity;
+- reports model-agreement F1 and support ratios for both engines;
+- persists a disagreement report per job;
+- is surfaced directly in the post-analysis accuracy panel.
+
+The external guitar-specific model remains experimental and is treated as a second opinion rather than the default for polyphonic strumming.
