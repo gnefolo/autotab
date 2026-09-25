@@ -7,6 +7,7 @@ WEB_DIR="$ROOT/apps/web"
 CORE_VENV="$API_DIR/.venv"
 ML_VENV="$API_DIR/.venv-ml"
 INSTALL_ML=0
+INSTALL_GUITAR_MODEL=0
 OPEN_BROWSER=1
 API_PID=""
 WEB_PID=""
@@ -19,19 +20,22 @@ Usage:
   ./start-autotab.sh [options]
 
 Options:
-  --ml        Use/install the full Basic Pitch + Demucs audio-analysis stack.
-  --no-open   Do not open the browser automatically.
+  --ml            Use/install the full Basic Pitch + Demucs audio-analysis stack.
+  --guitar-model  Also install the optional pretrained guitar-specific AMT model.
+  --no-open       Do not open the browser automatically.
   --help      Show this help.
 
 Examples:
   ./start-autotab.sh
   ./start-autotab.sh --ml
+  ./start-autotab.sh --ml --guitar-model
 EOF
 }
 
 for arg in "$@"; do
   case "$arg" in
     --ml) INSTALL_ML=1 ;;
+    --guitar-model) INSTALL_ML=1; INSTALL_GUITAR_MODEL=1 ;;
     --no-open) OPEN_BROWSER=0 ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown option: $arg"; usage; exit 2 ;;
@@ -104,6 +108,7 @@ if [ "$INSTALL_ML" -eq 1 ]; then
 fi
 CORE_MARKER="$VENV/.autotab-core-ready"
 ML_MARKER="$VENV/.autotab-ml-ready"
+GUITAR_MODEL_MARKER="$VENV/.autotab-guitar-model-ready"
 
 port_busy() {
   local port="$1"
@@ -150,6 +155,13 @@ if [ "$INSTALL_ML" -eq 1 ] && [ ! -f "$ML_MARKER" ]; then
   "$VENV/bin/python" -c 'import pkg_resources, demucs, basic_pitch; from basic_pitch.inference import predict; print("[AutoTab] ML imports OK")'
   "$VENV/bin/python" -m demucs --help >/dev/null 2>&1 || fail "Demucs installed but its CLI verification failed."
   touch "$ML_MARKER"
+fi
+
+if [ "$INSTALL_GUITAR_MODEL" -eq 1 ] && [ ! -f "$GUITAR_MODEL_MARKER" ]; then
+  log "Installing optional guitar-specific transcription model..."
+  "$VENV/bin/python" -m pip install -r "$ROOT/packages/audio_pipeline/requirements-guitar-model.txt"
+  "$VENV/bin/python" -c 'import hf_midi_transcription, pretty_midi; print("[AutoTab] Guitar-specific AMT imports OK")'
+  touch "$GUITAR_MODEL_MARKER"
 fi
 
 if [ ! -d "$WEB_DIR/node_modules" ]; then
@@ -199,6 +211,9 @@ if wait_for_url "http://localhost:3000"; then
   printf '[AutoTab] API docs: http://localhost:8000/docs\n'
   if [ "$INSTALL_ML" -eq 1 ]; then
     printf '[AutoTab] Full audio-analysis stack: READY\n'
+    if [ "$INSTALL_GUITAR_MODEL" -eq 1 ]; then
+      printf '[AutoTab] Guitar-specific second-opinion model: READY\n'
+    fi
   else
     printf '[AutoTab] ML stack not requested. For full audio analysis, restart with: ./start-autotab.sh --ml\n'
   fi
