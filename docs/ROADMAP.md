@@ -303,3 +303,25 @@ Remaining hardening: click-to-seek directly on rendered notation, beat-level int
 The guitar-specific model is treated as a second opinion because its published usage is strongest on solo/monophonic material; it is not automatically trusted for dense chordal strumming.
 
 Remaining hardening: benchmark on verified AutoTab corpus, section-level second opinion, confidence calibration, polyphonic guitar-specific models with direct tablature output, and safe ensemble fusion.
+
+
+## Milestone 24 - Disagreement-Aware Ensemble & Musical Validation - DONE (v0.25 baseline)
+- classify note events as confirmed by both models, primary-only or secondary-only
+- build a conservative musical-validation score from AMT confidence, duration, physical playability, chord context and melodic neighbors
+- keep model-confirmed notes at high confidence
+- require strong evidence before accepting primary-only notes
+- require even stronger evidence before recovering secondary-only notes
+- classify every disagreement as keep / review / reject with explicit reasons
+- build a safe-note proposal without silently changing the current transcription
+- add `POST /jobs/{job_id}/ensemble-review`
+- add `POST /jobs/{job_id}/ensemble-apply`
+- persist ensemble-review and applied-ensemble diagnostics per job
+- rebuild confidence diagnostics and inferred Rhythm/Lead parts after ensemble application
+- expose confirmed / primary-only / secondary-only and keep / review / reject counts in the UI
+- make the most critical disagreements directly auditionable from the review panel
+- require explicit user action before applying the safe ensemble
+- tests cover confirmed-note retention, weak artifact rejection, conservative secondary recovery and tuning-range penalties
+
+This milestone is intentionally precision-first: it does not merge two AMT engines by simple union and it never automatically applies the ensemble.
+
+Remaining hardening: learn validation weights from benchmark data, chord/key-aware harmonic validation, note-level visual overlays directly on the rendered TAB, undo/redo for ensemble application, section-level ensemble review and calibration against verified ground truth.
