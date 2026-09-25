@@ -56,7 +56,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.23.0")
+app = FastAPI(title="AutoTab API", version="0.24.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -226,7 +226,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.23.0"}
+    return {"status": "ok", "version": "0.24.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -427,8 +427,19 @@ def guitar_second_opinion(job_id: str, payload: SecondOpinionRequest):
         raise HTTPException(status_code=422, detail=f"source '{source}' is not available")
 
     primary = [NoteEvent(**row) for row in track.get("notes", [])]
-    transcriber = HFGuitarTranscriber()
-    secondary = transcriber.transcribe(pathlib.Path(source_path))
+    transcriber = HFGuitarTranscriber(device="cpu", batch_size=4)
+    try:
+        preflight = transcriber.preflight()
+        secondary = transcriber.transcribe(pathlib.Path(source_path))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Guitar-specific second opinion failed. "
+                f"{type(exc).__name__}: {exc}"
+            ),
+        ) from exc
+
     agreement = compare_transcriptions(
         primary,
         secondary,
@@ -436,6 +447,7 @@ def guitar_second_opinion(job_id: str, payload: SecondOpinionRequest):
     )
     report = {
         "engine": transcriber.name,
+        "preflight": preflight,
         "source": source,
         "onset_tolerance": payload.onset_tolerance,
         "agreement": agreement.to_dict(),
