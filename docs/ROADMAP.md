@@ -274,3 +274,32 @@ Remaining hardening: asynchronous refinement jobs, A/B compare between refinemen
 This milestone turns the confidence map from a passive diagnostic into an actionable correction workflow.
 
 Remaining hardening: asynchronous section jobs, automatic mode recommendation per weak window, A/B preview before accepting a section replacement, undo/redo for section refinements, and guitar-specific second-opinion models.
+
+
+## Milestone 22 - Songsterr-style Score Playhead - DONE (v0.22 baseline)
+- add a dedicated high-contrast vertical playhead over the rendered score/TAB
+- drive playback visuals with requestAnimationFrame instead of relying only on audio timeupdate
+- advance the OSMD cursor incrementally during normal playback
+- rebuild cursor position only on seek/backward jumps
+- auto-scroll the score when the current event leaves the comfortable viewport
+- show the active chord/event and current string:fret fingering in a now-playing badge
+- target the actual OSMD SVG cursor ids (cursorImg-*) with a visible native-cursor fallback
+- keep an overlay fallback visible even if OSMD exposes the cursor DOM late
+
+Remaining hardening: click-to-seek directly on rendered notation, beat-level interpolation between note onsets, multi-staff playhead geometry and mobile viewport tuning.
+
+
+## Milestone 23 - Guitar-Specific AMT Second Opinion - DONE (v0.23 baseline)
+- integrate an optional pretrained guitar-specific transcription adapter based on hf-midi-transcription
+- keep it opt-in rather than replacing the default polyphonic Basic Pitch consensus
+- add launcher flag: --ml --guitar-model
+- compare primary and guitar-specific note events with pitch + onset agreement
+- report primary support ratio, secondary support ratio and model-agreement F1
+- persist disagreement diagnostics per job
+- expose second-opinion controls and agreement metrics in the post-analysis UI
+- surface model availability through ML diagnostics
+- tests cover exact agreement, pitch disagreements and onset tolerance
+
+The guitar-specific model is treated as a second opinion because its published usage is strongest on solo/monophonic material; it is not automatically trusted for dense chordal strumming.
+
+Remaining hardening: benchmark on verified AutoTab corpus, section-level second opinion, confidence calibration, polyphonic guitar-specific models with direct tablature output, and safe ensemble fusion.
