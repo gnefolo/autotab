@@ -380,3 +380,66 @@ input,select{border-radius:0}
 .weakWindowRow{display:flex;gap:5px;align-items:center}
 .weakWindowRow button:first-child{flex:1;text-align:left}
 .weakWindowRow button:last-child{white-space:nowrap}
+
+.scoreCanvas{position:relative}
+.songsterrPlayhead{
+  position:absolute;
+  left:0;
+  top:0;
+  width:2px;
+  min-height:44px;
+  background:var(--accent);
+  box-shadow:0 0 0 1px rgba(0,0,0,.12);
+  pointer-events:none;
+  opacity:0;
+  z-index:8;
+  will-change:transform,height;
+  transition:opacity .08s linear;
+}
+.playheadCap{
+  position:absolute;
+  top:-5px;
+  left:50%;
+  width:8px;
+  height:8px;
+  background:var(--accent);
+  transform:translateX(-50%) rotate(45deg);
+}
+.nowPlayingBadge{
+  position:sticky;
+  left:12px;
+  bottom:10px;
+  z-index:9;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  max-width:calc(100% - 24px);
+  padding:6px 9px;
+  background:rgba(16,19,21,.93);
+  color:#fff;
+  border:1px solid #303840;
+  font-size:9px;
+  letter-spacing:.04em;
+  pointer-events:none;
+}
+.nowPlayingBadge span{
+  color:var(--soft);
+  text-transform:uppercase;
+  letter-spacing:.12em;
+}
+.nowPlayingBadge strong{
+  color:var(--accent);
+  font-size:11px;
+}
+.nowPlayingBadge em{
+  font-style:normal;
+  color:#d7dde2;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.scoreCanvas .osmd-cursor{
+  fill:rgba(120,196,66,.12)!important;
+  stroke:rgba(120,196,66,.45)!important;
+  stroke-width:1px!important;
+}
