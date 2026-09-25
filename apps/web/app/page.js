@@ -717,9 +717,15 @@ export default function Home() {
       if (cancelled) return;
 
       scoreRenderWidth.current = width;
-      viewer.cursor.show();
       viewer.cursor.reset();
+      viewer.cursor.show();
       cursorIndex.current = -1;
+      const nativeCursor = scoreHost.current?.querySelector('#cursorImg-0, [id^="cursorImg-"], .osmd-cursor');
+      if (nativeCursor) {
+        nativeCursor.style.opacity = '1';
+        nativeCursor.style.visibility = 'visible';
+        nativeCursor.style.display = '';
+      }
       playbackOnsets.current = [...new Set((job?.result?.quantized_tab || []).map(n => n.original_start))]
         .filter(Number.isFinite)
         .sort((a, b) => a - b);
@@ -945,7 +951,7 @@ export default function Home() {
   }
 
   function positionPlayhead(autoScroll = false) {
-    const cursorEl = scoreHost.current?.querySelector('.osmd-cursor');
+    const cursorEl = scoreHost.current?.querySelector('#cursorImg-0, [id^="cursorImg-"], .osmd-cursor');
     const canvas = scoreHost.current?.closest('.scoreCanvas');
     const line = playhead.current;
     if (!cursorEl || !canvas || !line) return;
