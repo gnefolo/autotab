@@ -443,3 +443,18 @@ input,select{border-radius:0}
   stroke:rgba(120,196,66,.45)!important;
   stroke-width:1px!important;
 }
+
+#cursorImg-0,[id^="cursorImg-"],.scoreCanvas .osmd-cursor{
+  opacity:1!important;
+  visibility:visible!important;
+  display:block!important;
+}
+#cursorImg-0 rect,[id^="cursorImg-"] rect,.scoreCanvas .osmd-cursor rect{
+  fill:rgba(120,196,66,.20)!important;
+  stroke:#78c442!important;
+  stroke-width:2.5px!important;
+}
+#cursorImg-0 line,[id^="cursorImg-"] line,.scoreCanvas .osmd-cursor line{
+  stroke:#78c442!important;
+  stroke-width:3px!important;
+}
