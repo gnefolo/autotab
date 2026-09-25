@@ -5,8 +5,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from music_engine.engine import NoteEvent
+
+_HF_GUITAR_MODEL_CACHE = {}
 
 
 class Separator(ABC):
@@ -344,46 +347,87 @@ def build_guitar_transcriber(mode: str = "balanced") -> Transcriber:
 
 @dataclass
 class HFGuitarTranscriber(Transcriber):
-    device: str = "auto"
-    batch_size: int = 8
+    # CPU is deliberate: the upstream project documents CPU/CUDA and its
+    # underlying piano-transcription stack is not reliably MPS-safe on macOS.
+    device: str = "cpu"
+    batch_size: int = 4
     name: str = "hf-midi-transcription:guitar"
+
+    def _model(self):
+        try:
+            from hf_midi_transcription import MidiTranscriptionModel
+        except Exception as exc:
+            raise RuntimeError(
+                "Guitar-specific AMT import failed. Restart AutoTab with "
+                "./start-autotab.sh --ml --guitar-model. "
+                f"Original error: {type(exc).__name__}: {exc}"
+            ) from exc
+
+        cache_key = (self.device, self.batch_size)
+        if cache_key not in _HF_GUITAR_MODEL_CACHE:
+            try:
+                _HF_GUITAR_MODEL_CACHE[cache_key] = MidiTranscriptionModel(
+                    instrument="guitar",
+                    device=self.device,
+                    batch_size=self.batch_size,
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    "Guitar-specific model initialization/checkpoint load failed. "
+                    f"{type(exc).__name__}: {exc}"
+                ) from exc
+        return _HF_GUITAR_MODEL_CACHE[cache_key]
+
+    def preflight(self) -> dict:
+        model = self._model()
+        return {
+            "ready": True,
+            "engine": self.name,
+            "device": self.device,
+            "batch_size": self.batch_size,
+            "checkpoint": str(getattr(model, "checkpoint_path", "unknown")),
+        }
 
     def transcribe(self, audio_path: Path) -> list[NoteEvent]:
         try:
-            from hf_midi_transcription import MidiTranscriptionModel
             import pretty_midi
         except Exception as exc:
             raise RuntimeError(
-                "Guitar-specific AMT is not installed. Start AutoTab with "
-                "./start-autotab.sh --ml --guitar-model"
+                f"pretty_midi import failed: {type(exc).__name__}: {exc}"
             ) from exc
 
-        with tempfile.TemporaryDirectory(prefix="autotab-hf-guitar-") as td:
-            midi_path = Path(td) / "guitar.mid"
-            model = MidiTranscriptionModel(
-                instrument="guitar",
-                device=self.device,
-                batch_size=self.batch_size,
-            )
-            model.transcribe(str(audio_path), str(midi_path))
+        model = self._model()
+        try:
+            with tempfile.TemporaryDirectory(prefix="autotab-hf-guitar-") as td:
+                midi_path = Path(td) / "guitar.mid"
+                model.transcribe(str(audio_path), str(midi_path))
+                if not midi_path.exists():
+                    raise RuntimeError("guitar-specific model produced no MIDI file")
 
-            midi = pretty_midi.PrettyMIDI(str(midi_path))
-            result: list[NoteEvent] = []
-            for instrument in midi.instruments:
-                if instrument.is_drum:
-                    continue
-                for note in instrument.notes:
-                    duration = max(0.001, float(note.end) - float(note.start))
-                    velocity = max(1, min(127, int(note.velocity)))
-                    result.append(
-                        NoteEvent(
-                            pitch=int(note.pitch),
-                            start=float(note.start),
-                            duration=duration,
-                            velocity=velocity,
-                            confidence=max(0.25, min(1.0, velocity / 127.0)),
-                            pitch_bends=(),
+                midi = pretty_midi.PrettyMIDI(str(midi_path))
+                result: list[NoteEvent] = []
+                for instrument in midi.instruments:
+                    if instrument.is_drum:
+                        continue
+                    for note in instrument.notes:
+                        duration = max(0.001, float(note.end) - float(note.start))
+                        velocity = max(1, min(127, int(note.velocity)))
+                        result.append(
+                            NoteEvent(
+                                pitch=int(note.pitch),
+                                start=float(note.start),
+                                duration=duration,
+                                velocity=velocity,
+                                confidence=max(0.25, min(1.0, velocity / 127.0)),
+                                pitch_bends=(),
+                            )
                         )
-                    )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError(
+                "Guitar-specific inference failed. "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
 
         return sorted(result, key=lambda event: (event.start, event.pitch))
