@@ -1,4 +1,5 @@
 # Optional experimental guitar-specific AMT runtime.
 # Installed only with ./start-autotab.sh --ml --guitar-model
-hf-midi-transcription
+# Upstream package is not currently published on PyPI, so pin the GitHub source.
+git+https://github.com/xavriley/hf_midi_transcription.git@96f6797881e9497cbfc8f8e5deccea9c1f2f7adc
 pretty_midi>=0.2.10
