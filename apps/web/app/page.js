@@ -769,8 +769,20 @@ export default function Home() {
       if (cancelled) return;
 
       scoreRenderWidth.current = width;
+      viewer.cursor.CursorOptions = {
+        type: 1,
+        color: '#78c442',
+        alpha: 1.0,
+        follow: true,
+      };
       viewer.cursor.reset();
       viewer.cursor.show();
+      if (viewer.cursor.cursorElement) {
+        viewer.cursor.cursorElement.style.zIndex = '30';
+        viewer.cursor.cursorElement.style.opacity = '1';
+        viewer.cursor.cursorElement.style.visibility = 'visible';
+        viewer.cursor.cursorElement.style.pointerEvents = 'none';
+      }
       cursorIndex.current = -1;
       const nativeCursor = scoreHost.current?.querySelector('#cursorImg-0, [id^="cursorImg-"], .osmd-cursor');
       if (nativeCursor) {
@@ -1003,7 +1015,8 @@ export default function Home() {
   }
 
   function positionPlayhead(autoScroll = false) {
-    const cursorEl = scoreHost.current?.querySelector('#cursorImg-0, [id^="cursorImg-"], .osmd-cursor');
+    const cursorEl = osmd.current?.cursor?.cursorElement
+      || scoreHost.current?.querySelector('#cursorImg-0, [id^="cursorImg-"], .osmd-cursor');
     const canvas = scoreHost.current?.closest('.scoreCanvas');
     const line = playhead.current;
     if (!canvas || !line) return;
@@ -1063,6 +1076,11 @@ export default function Home() {
         for (let i = cursorIndex.current; i < idx; i++) cursor.next();
       }
       cursor.show();
+      if (cursor.cursorElement) {
+        cursor.cursorElement.style.zIndex = '30';
+        cursor.cursorElement.style.opacity = '1';
+        cursor.cursorElement.style.visibility = 'visible';
+      }
       cursorIndex.current = idx;
 
       const onset = onsets[idx];
