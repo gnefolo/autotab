@@ -336,7 +336,6 @@ export default function Home() {
   const scoreHost = useRef(null);
   const osmd = useRef(null);
   const cursorIndex = useRef(-1);
-  const playhead = useRef(null);
   const playbackFrame = useRef(null);
   const playbackOnsets = useRef([]);
   const synthContext = useRef(null);
@@ -1018,35 +1017,24 @@ export default function Home() {
     const cursorEl = osmd.current?.cursor?.cursorElement
       || scoreHost.current?.querySelector('#cursorImg-0, [id^="cursorImg-"], .osmd-cursor');
     const canvas = scoreHost.current?.closest('.scoreCanvas');
-    const line = playhead.current;
-    if (!canvas || !line) return;
+    if (!cursorEl || !canvas) return;
 
-    const canvasRect = canvas.getBoundingClientRect();
+    cursorEl.style.zIndex = '30';
+    cursorEl.style.opacity = '1';
+    cursorEl.style.visibility = 'visible';
+    cursorEl.style.display = '';
 
-    let left;
-    let top;
-    let height;
-
-    if (cursorEl) {
+    if (autoScroll) {
       const cursorRect = cursorEl.getBoundingClientRect();
-      left = cursorRect.left - canvasRect.left + canvas.scrollLeft + Math.max(1, cursorRect.width / 2);
-      top = cursorRect.top - canvasRect.top + canvas.scrollTop;
-      height = Math.max(54, cursorRect.height);
-    } else {
-      left = canvas.scrollLeft + Math.max(24, canvas.clientWidth * 0.18);
-      top = canvas.scrollTop + 18;
-      height = Math.max(120, canvas.clientHeight * 0.5);
-    }
-
-    line.style.transform = `translate3d(${Math.round(left)}px,${Math.round(top)}px,0)`;
-    line.style.height = `${Math.round(height)}px`;
-    line.style.opacity = '1';
-
-    if (autoScroll && cursorEl) {
-      const targetTop = Math.max(0, top - canvas.clientHeight * 0.34);
-      const outside = top < canvas.scrollTop + canvas.clientHeight * 0.14
+      const canvasRect = canvas.getBoundingClientRect();
+      const top = cursorRect.top - canvasRect.top + canvas.scrollTop;
+      const height = Math.max(54, cursorRect.height);
+      const outside = top < canvas.scrollTop + canvas.clientHeight * 0.16
         || top + height > canvas.scrollTop + canvas.clientHeight * 0.78;
-      if (outside) canvas.scrollTo({ top: targetTop, behavior: 'smooth' });
+      if (outside) {
+        const targetTop = Math.max(0, top - canvas.clientHeight * 0.34);
+        canvas.scrollTo({ top: targetTop, behavior: 'smooth' });
+      }
     }
   }
 
@@ -1182,7 +1170,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.23</span>
+          <span className="versionTag">0.24</span>
         </div>
       </header>
 
@@ -1657,9 +1645,6 @@ export default function Home() {
             </div>
             <div className="scoreCanvas">
               <div ref={scoreHost} />
-              <div ref={playhead} className="songsterrPlayhead" aria-hidden="true">
-                <span className="playheadCap" />
-              </div>
               {activePlayback && (
                 <div className="nowPlayingBadge" aria-live="polite">
                   <span>{t.nowPlaying}</span>
