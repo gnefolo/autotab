@@ -465,3 +465,20 @@ input,select{border-radius:0}
 .secondOpinionStats span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--soft)}
 .secondOpinionStats strong{font-size:16px;color:var(--text)}
 @media(max-width:760px){.secondOpinionStats{grid-template-columns:1fr}}
+
+.ensembleBlock{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.ensembleStats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}
+.ensembleStats>div{border:1px solid var(--border);padding:8px;display:flex;flex-direction:column;gap:3px;background:#0d1012}
+.ensembleStats span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--soft)}
+.ensembleStats strong{font-size:17px;color:var(--text)}
+.ensembleStats .confirmed strong,.ensembleStats .keep strong,.ensembleStats .safe strong{color:#78c442}
+.ensembleStats .review strong{color:#c39d45}
+.ensembleStats .reject strong{color:#c65d5d}
+.ensembleStats .span2{grid-column:span 2}
+.ensembleDecisionBar{height:8px;display:flex;overflow:hidden;border:1px solid var(--border);margin:10px 0 8px;background:#111}
+.ensembleDecisionBar i{display:block;height:100%}
+.ensembleDecisionBar .keep{background:#638f54}
+.ensembleDecisionBar .review{background:#a9873c}
+.ensembleDecisionBar .reject{background:#994a4a}
+.ensembleApply{margin-top:10px}
+@media(max-width:760px){.ensembleStats{grid-template-columns:1fr 1fr}.ensembleStats .span2{grid-column:1/-1}}
