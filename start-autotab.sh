@@ -158,9 +158,12 @@ if [ "$INSTALL_ML" -eq 1 ] && [ ! -f "$ML_MARKER" ]; then
 fi
 
 if [ "$INSTALL_GUITAR_MODEL" -eq 1 ] && [ ! -f "$GUITAR_MODEL_MARKER" ]; then
-  log "Installing optional guitar-specific transcription model..."
-  "$VENV/bin/python" -m pip install -r "$ROOT/packages/audio_pipeline/requirements-guitar-model.txt"
-  "$VENV/bin/python" -c 'import hf_midi_transcription, pretty_midi; print("[AutoTab] Guitar-specific AMT imports OK")'
+  need_command git "git is required to install the optional guitar-specific AMT model."
+  log "Installing optional guitar-specific transcription model from pinned GitHub source..."
+  if ! "$VENV/bin/python" -m pip install -r "$ROOT/packages/audio_pipeline/requirements-guitar-model.txt"; then
+    fail "Guitar-specific AMT installation failed. The core AutoTab ML stack is still intact; rerun without --guitar-model to use Basic Pitch only."
+  fi
+  "$VENV/bin/python" -c 'import hf_midi_transcription, pretty_midi; print("[AutoTab] Guitar-specific AMT imports OK")' || fail "Guitar-specific AMT installed but import verification failed."
   touch "$GUITAR_MODEL_MARKER"
 fi
 
