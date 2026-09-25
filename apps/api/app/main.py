@@ -49,6 +49,7 @@ from audio_pipeline.second_opinion import compare_transcriptions
 from music_engine.guitar_roles import split_guitar_roles
 from music_engine.riff_consistency import harmonize_repeated_riffs
 from music_engine.refinement import replace_events_in_window
+from music_engine.ensemble_validation import build_disagreement_aware_ensemble
 
 from .services.jobs import JobService
 
@@ -56,7 +57,7 @@ UPLOADS = ROOT / "artifacts" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 JOBS = JobService(ROOT / "artifacts" / "jobs")
 
-app = FastAPI(title="AutoTab API", version="0.24.0")
+app = FastAPI(title="AutoTab API", version="0.25.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -226,7 +227,7 @@ def _save_ranker(model: LearnedRankerModel) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.24.0"}
+    return {"status": "ok", "version": "0.25.0"}
 
 
 @app.get("/diagnostics/ml")
@@ -393,6 +394,157 @@ def get_job(job_id: str):
 
 
 
+
+
+
+@app.post("/jobs/{job_id}/ensemble-review")
+def guitar_ensemble_review(job_id: str, payload: RetuneRequest):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+
+    track = job.result.get("tracks", {}).get("guitar")
+    if not track:
+        raise HTTPException(status_code=404, detail="guitar track not available")
+
+    second = track.get("second_opinion")
+    if not second or not second.get("secondary_notes"):
+        raise HTTPException(
+            status_code=422,
+            detail="Run Guitar second opinion before disagreement-aware review.",
+        )
+
+    tuning = resolve_setup(
+        payload.tuning,
+        payload.capo,
+        payload.custom_open_pitches,
+        payload.custom_name,
+    )
+    primary = [NoteEvent(**row) for row in track.get("notes", [])]
+    secondary = [NoteEvent(**row) for row in second.get("secondary_notes", [])]
+    review = build_disagreement_aware_ensemble(
+        primary,
+        secondary,
+        tuning,
+        onset_tolerance=float(second.get("onset_tolerance", 0.08)),
+    )
+    report = review.to_dict(include_events=True)
+    report["tuning"] = {
+        "name": tuning.name,
+        "open_pitches": list(tuning.open_pitches),
+        "capo": tuning.capo,
+    }
+    track["ensemble_review"] = report
+    out = JOBS.root / job_id / "ensemble-review-guitar.json"
+    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return {
+        "job_id": job_id,
+        "part": "guitar",
+        **report,
+    }
+
+
+@app.post("/jobs/{job_id}/ensemble-apply")
+def guitar_ensemble_apply(job_id: str, payload: RetuneRequest):
+    job = JOBS.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(status_code=404, detail="result not ready")
+
+    tracks = job.result.get("tracks", {})
+    track = tracks.get("guitar")
+    if not track:
+        raise HTTPException(status_code=404, detail="guitar track not available")
+
+    second = track.get("second_opinion")
+    if not second or not second.get("secondary_notes"):
+        raise HTTPException(
+            status_code=422,
+            detail="Run Guitar second opinion before applying the ensemble.",
+        )
+
+    tuning = resolve_setup(
+        payload.tuning,
+        payload.capo,
+        payload.custom_open_pitches,
+        payload.custom_name,
+    )
+    primary = [NoteEvent(**row) for row in track.get("notes", [])]
+    secondary = [NoteEvent(**row) for row in second.get("secondary_notes", [])]
+    review = build_disagreement_aware_ensemble(
+        primary,
+        secondary,
+        tuning,
+        onset_tolerance=float(second.get("onset_tolerance", 0.08)),
+    )
+
+    riff_result = harmonize_repeated_riffs(review.safe_events)
+    guitar_notes = list(riff_result.events)
+
+    track.update(
+        {
+            "notes": [note.__dict__ for note in guitar_notes],
+            "confidence": confidence_summary(guitar_notes),
+            "transcription_engine": "disagreement-aware-ensemble-v1",
+            "ensemble_review": review.to_dict(include_events=True),
+            "ensemble_applied": {
+                "safe_note_count": len(guitar_notes),
+                "confirmed": review.confirmed,
+                "kept": review.keep,
+                "review": review.review,
+                "rejected": review.reject,
+            },
+            "riff_consistency": {
+                "correction_count": len(riff_result.corrections),
+                "corrections": [row.__dict__ for row in riff_result.corrections],
+            },
+        }
+    )
+
+    tracks.pop("guitar_rhythm", None)
+    tracks.pop("guitar_lead", None)
+    role_split = split_guitar_roles(guitar_notes)
+    base_meta = {
+        "kind": "strings",
+        "virtual": True,
+        "stem": track.get("stem"),
+        "source_path": track.get("source_path"),
+        "transcription_engine": track["transcription_engine"],
+    }
+    if len(role_split.rhythm) >= 4:
+        tracks["guitar_rhythm"] = {
+            **base_meta,
+            "part": "guitar_rhythm",
+            "notes": [note.__dict__ for note in role_split.rhythm],
+            "confidence": confidence_summary(role_split.rhythm),
+            "role_confidence": role_split.confidence,
+            "role_explanation": list(role_split.explanation),
+        }
+    if len(role_split.lead) >= 4:
+        tracks["guitar_lead"] = {
+            **base_meta,
+            "part": "guitar_lead",
+            "notes": [note.__dict__ for note in role_split.lead],
+            "confidence": confidence_summary(role_split.lead),
+            "role_confidence": role_split.confidence,
+            "role_explanation": list(role_split.explanation),
+        }
+
+    if job.result.get("selected_part", "guitar").startswith("guitar"):
+        job.result["selected_part"] = "guitar"
+        job.result["notes"] = [note.__dict__ for note in guitar_notes]
+
+    out = JOBS.root / job_id / "ensemble-applied-guitar.json"
+    out.write_text(
+        json.dumps(
+            {
+                "safe_note_count": len(guitar_notes),
+                "review": review.to_dict(include_events=False),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return job.__dict__
 
 
 @app.post("/jobs/{job_id}/second-opinion")
