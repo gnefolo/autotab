@@ -482,3 +482,14 @@ input,select{border-radius:0}
 .ensembleDecisionBar .reject{background:#994a4a}
 .ensembleApply{margin-top:10px}
 @media(max-width:760px){.ensembleStats{grid-template-columns:1fr 1fr}.ensembleStats .span2{grid-column:1/-1}}
+
+.ensembleDisagreements{margin-top:12px;display:flex;flex-direction:column;gap:5px}
+.ensembleDecision{display:grid;grid-template-columns:48px 1fr 72px 86px;gap:8px;align-items:center;width:100%;border:1px solid var(--border);background:#0c0f11;color:var(--muted);padding:7px 8px;text-align:left;cursor:pointer}
+.ensembleDecision:hover{border-color:var(--soft);color:var(--text)}
+.ensembleDecision strong{font-size:10px;color:var(--text)}
+.ensembleDecision em{font-style:normal;font-size:8px;text-transform:uppercase;letter-spacing:.08em}
+.ensembleDecision b{font-size:9px;text-align:right}
+.ensembleDecision.keep b{color:#78c442}
+.ensembleDecision.review b{color:#c39d45}
+.ensembleDecision.reject b{color:#c65d5d}
+@media(max-width:760px){.ensembleDecision{grid-template-columns:42px 1fr 64px}.ensembleDecision b{grid-column:1/-1;text-align:left}}
