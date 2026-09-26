@@ -161,6 +161,7 @@ const COPY = {
     reviewNotes: 'Da verificare',
     rejectNotes: 'Reject',
     safeNotes: 'Note proposta safe',
+    safeReduction: 'Riduzione vs primary',
     applyEnsemble: 'Applica ensemble sicuro',
     applyingEnsemble: 'Applicazione ensemble…',
     ensembleApplied: 'Ensemble sicuro applicato',
@@ -312,6 +313,7 @@ const COPY = {
     reviewNotes: 'Needs review',
     rejectNotes: 'Reject',
     safeNotes: 'Safe proposal notes',
+    safeReduction: 'Reduction vs primary',
     applyEnsemble: 'Apply safe ensemble',
     applyingEnsemble: 'Applying ensemble…',
     ensembleApplied: 'Safe ensemble applied',
@@ -1268,7 +1270,7 @@ export default function Home() {
             <button className={lang === 'it' ? 'active' : ''} onClick={() => setLang('it')}>IT</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
           </div>
-          <span className="versionTag">0.25</span>
+          <span className="versionTag">0.26</span>
         </div>
       </header>
 
@@ -1475,6 +1477,14 @@ export default function Home() {
                                 <div className="review"><span>{t.reviewNotes}</span><strong>{ensembleReview.review}</strong></div>
                                 <div className="reject"><span>{t.rejectNotes}</span><strong>{ensembleReview.reject}</strong></div>
                                 <div className="safe span2"><span>{t.safeNotes}</span><strong>{ensembleReview.safe_note_count}</strong></div>
+                                <div className="span2"><span>{t.safeReduction}</span><strong>{
+                                  Math.max(
+                                    0,
+                                    Math.round(
+                                      (1 - (ensembleReview.safe_note_count || 0) / Math.max(1, secondOpinion?.agreement?.primary_notes || 1)) * 100
+                                    )
+                                  )
+                                }%</strong></div>
                               </div>
                               <div className="ensembleDecisionBar">
                                 <i className="keep" style={{width: `${Math.round((ensembleReview.keep || 0) / Math.max(1, (ensembleReview.keep || 0) + (ensembleReview.review || 0) + (ensembleReview.reject || 0)) * 100)}%`}} />
