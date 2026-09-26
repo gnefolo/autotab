@@ -187,22 +187,42 @@ def build_disagreement_aware_ensemble(
     for pi in primary_only:
         event = primary_rows[pi]
         context_score, reasons = _musical_context(event, primary_rows, tuning)
-        score = 0.48 * event.confidence + 0.18 + context_score
-        if event.confidence >= 0.82:
-            score += 0.08
-            reasons.append("high_primary_confidence")
-        elif event.confidence < 0.52:
-            score -= 0.10
-            reasons.append("low_primary_confidence")
-        score = max(0.0, min(1.0, score))
 
-        if score >= 0.72:
+        playable = "physically_playable" in reasons
+        stable_duration = event.duration >= 0.08
+        contextual = (
+            "plausible_chord_context" in reasons
+            or "melodic_neighbor" in reasons
+        )
+        very_high_confidence = event.confidence >= 0.88
+        high_confidence = event.confidence >= 0.80
+
+        # Precision-first policy:
+        # an unconfirmed primary note must have strong AMT evidence AND
+        # independently plausible musical/physical context before it is allowed
+        # into the safe proposal.
+        if (
+            playable
+            and stable_duration
+            and very_high_confidence
+            and contextual
+        ):
             decision = "keep"
+            score = min(0.93, 0.72 + 0.18 * event.confidence + max(0.0, context_score) * 0.25)
             safe_events.append(event)
-        elif score >= 0.52:
+            reasons.append("strict_primary_keep_gate")
+        elif (
+            playable
+            and stable_duration
+            and high_confidence
+        ):
             decision = "review"
+            score = min(0.82, 0.52 + 0.20 * event.confidence + max(0.0, context_score) * 0.20)
+            reasons.append("unconfirmed_primary_requires_review")
         else:
             decision = "reject"
+            score = max(0.0, min(0.49, 0.24 + 0.20 * event.confidence + context_score * 0.15))
+            reasons.append("insufficient_unconfirmed_primary_evidence")
 
         decisions.append(
             EnsembleDecision(
@@ -221,7 +241,6 @@ def build_disagreement_aware_ensemble(
     for si in secondary_only:
         event = secondary_rows[si]
         context_score, reasons = _musical_context(event, secondary_rows, tuning)
-        score = 0.28 * event.confidence + 0.16 + context_score
 
         nearby_primary = any(
             abs(other.start - event.start) <= onset_tolerance
@@ -229,19 +248,28 @@ def build_disagreement_aware_ensemble(
             for other in primary_rows
         )
         if nearby_primary:
-            score += 0.07
+            context_score += 0.07
             reasons.append("near_primary_pitch_disagreement")
 
-        score = max(0.0, min(1.0, score))
-        # The second-opinion model is currently less trusted for polyphonic
-        # strumming. Recovery therefore requires unusually strong evidence.
-        if score >= 0.86:
-            decision = "keep"
-            safe_events.append(event)
-        elif score >= 0.58:
+        playable = "physically_playable" in reasons
+        stable_duration = event.duration >= 0.08
+        contextual = (
+            "plausible_chord_context" in reasons
+            or "melodic_neighbor" in reasons
+            or nearby_primary
+        )
+
+        # The external guitar-specific model is currently a second opinion,
+        # not an automatic recovery source for polyphonic guitar. Secondary-only
+        # notes therefore never enter the safe proposal in this baseline.
+        if playable and stable_duration and event.confidence >= 0.82 and contextual:
             decision = "review"
+            score = min(0.79, 0.50 + 0.18 * event.confidence + max(0.0, context_score) * 0.18)
+            reasons.append("secondary_only_manual_review")
         else:
             decision = "reject"
+            score = max(0.0, min(0.49, 0.20 + 0.16 * event.confidence + context_score * 0.12))
+            reasons.append("secondary_only_not_auto_recovered")
 
         decisions.append(
             EnsembleDecision(
