@@ -1,4 +1,4 @@
-# AutoTab MVP v0.25
+# AutoTab MVP v0.26
 
 AutoTab turns audio into instrument stems, note events and playable tablature/notation. Its core differentiator is a tuning-aware fingering engine: detected musical pitches remain canonical while string/fret assignments are recomputed for the player's instrument and tuning.
 
@@ -413,3 +413,17 @@ POST /jobs/{job_id}/ensemble-apply
 ```
 
 Applying the ensemble refreshes canonical guitar notes, confidence diagnostics, repeated-riff consistency and inferred Rhythm/Lead views. The default behavior remains non-destructive until the user chooses **Apply safe ensemble**.
+
+
+## v0.26 — Precision Gate
+
+The disagreement-aware ensemble is now stricter after real-world testing showed that the first safe proposal was too permissive.
+
+- secondary-only notes are never auto-added to the safe proposal;
+- primary-only notes require very high AMT confidence, playable range, non-micro duration and musical context before automatic keep;
+- medium-confidence primary-only notes are review-only;
+- weak or out-of-range events are rejected;
+- the UI reports safe-note reduction versus the primary transcription;
+- regression tests prevent secondary-only auto-recovery and low-context primary-only leakage.
+
+The safe proposal is intentionally precision-first.
